@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../providers/expense_provider.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: const Key('stats_screen'));
@@ -10,92 +12,100 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   int _selectedFilter = 1; // 0: This Week, 1: This Month, 2: Last Month
-  int _touchedIndex = -1;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
-                    'Analytics',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  Text(
-                    'September 2026',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+        child: Consumer<ExpenseProvider>(
+          builder: (context, provider, child) {
+            final total = provider.getTotalSpending(_selectedFilter);
+            final dailyAvg = provider.getDailyAverage(_selectedFilter);
+            final breakdown = provider.getCategoryBreakdown(_selectedFilter);
+            final barData = provider.getBarChartData(_selectedFilter);
+            final count = provider.getFilteredExpenses(_selectedFilter).length;
+            final periodLabel = provider.getPeriodLabel(_selectedFilter);
 
-              // Filter Switcher
-              _buildFilterSegment(),
-              const SizedBox(height: 20),
-
-              // Donut Chart Card
-              _buildDonutChartCard(),
-              const SizedBox(height: 16),
-
-              // Daily Average & Purchases Grid
-              Row(
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: 'DAILY AVERAGE',
-                      value: '₱189.81',
-                      subtitle: 'per active day',
-                    ),
+                  // Header with dynamic date label
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Analytics',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      Text(
+                        periodLabel,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: 'FOOD PURCHASES',
-                      value: '47',
-                      subtitle: 'meals & drinks',
-                    ),
+                  const SizedBox(height: 16),
+
+                  // Filter Buttons
+                  _buildFilterSegment(),
+                  const SizedBox(height: 20),
+
+                  // Donut Chart Card
+                  _buildDonutChartCard(total, breakdown),
+                  const SizedBox(height: 16),
+
+                  // Metrics Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'DAILY AVERAGE',
+                          value: '₱${dailyAvg.toStringAsFixed(2)}',
+                          subtitle: 'per active day',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'FOOD PURCHASES',
+                          value: '$count',
+                          subtitle: 'meals & drinks',
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+
+                  // Dynamic Bar Chart Card
+                  _buildBarChartCard(barData, _selectedFilter),
+                  const SizedBox(height: 16),
+
+                  // Category Breakdown
+                  _buildBreakdownCard(breakdown),
+                  const SizedBox(height: 16),
+
+                  // Insight Banner
+                  _buildInsightBanner(),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // Daily Trend Bar Chart
-              _buildBarChartCard(),
-              const SizedBox(height: 16),
-
-              // Spending Breakdown List
-              _buildBreakdownCard(),
-              const SizedBox(height: 16),
-
-              // Insight Banner
-              _buildInsightBanner(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // --- UI COMPONENTS ---
-
   Widget _buildFilterSegment() {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0).withOpacity(0.5),
+        color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(25),
       ),
       child: Row(
@@ -133,7 +143,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildDonutChartCard() {
+  Widget _buildDonutChartCard(double total, List<Map<String, dynamic>> breakdown) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
@@ -146,117 +156,91 @@ class _StatsScreenState extends State<StatsScreen> {
               children: [
                 PieChart(
                   PieChartData(
-                    pieTouchData: PieTouchData(
-                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                        setState(() {
-                          if (!event.isInterestedForInteractions ||
-                              pieTouchResponse == null ||
-                              pieTouchResponse.touchedSection == null) {
-                            _touchedIndex = -1;
-                            return;
-                          }
-                          _touchedIndex = pieTouchResponse
-                              .touchedSection!.touchedSectionIndex;
-                        });
-                      },
-                    ),
+                    // Disabled touch interactions to prevent web mouse_tracker errors
+                    pieTouchData: PieTouchData(enabled: false),
                     sectionsSpace: 3,
                     centerSpaceRadius: 60,
-                    sections: [
-                      _pieSection(const Color(0xFF00C853), 35, 0),
-                      _pieSection(const Color(0xFF6C5CE7), 29, 1),
-                      _pieSection(const Color(0xFFFFA000), 17, 2),
-                      _pieSection(const Color(0xFF00CEC9), 11, 3),
-                      _pieSection(const Color(0xFFFF7675), 8, 4),
-                    ],
+                    sections: breakdown.isEmpty
+                        ? [
+                            PieChartSectionData(
+                              color: const Color(0xFFE2E8F0),
+                              value: 100,
+                              title: '',
+                              radius: 18,
+                            )
+                          ]
+                        : breakdown.map((item) {
+                            return PieChartSectionData(
+                              color: item['color'] as Color,
+                              value: item['amt'] as double,
+                              title: '',
+                              radius: 18,
+                            );
+                          }).toList(),
                   ),
                 ),
                 Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Text(
-                      'TOTAL',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      '₱4,935.00',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
+                  children: [
+                    const Text('TOTAL',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF94A3B8),
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text('₱${total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B))),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Tap any slice to filter by category',
-            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-          ),
+          const Text('Category Overview',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
         ],
       ),
     );
   }
 
-  PieChartSectionData _pieSection(Color color, double value, int index) {
-    final isTouched = index == _touchedIndex;
-    return PieChartSectionData(
-      color: color,
-      value: value,
-      title: '',
-      radius: isTouched ? 22 : 18,
-    );
-  }
-
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required String subtitle,
-  }) {
+  Widget _buildMetricCard(
+      {required String title, required String value, required String subtitle}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF94A3B8),
-            ),
-          ),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8))),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B))),
           const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-          ),
+          Text(subtitle,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
         ],
       ),
     );
   }
 
-  Widget _buildBarChartCard() {
-    final barData = [160.0, 180.0, 120.0, 210.0, 200.0, 170.0, 245.0];
-    final days = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri\n(Today)'];
+  Widget _buildBarChartCard(List<double> barData, int filterIndex) {
+    final labels = filterIndex == 0
+        ? ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri\n(Today)']
+        : ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4'];
+
+    final maxVal = barData.isEmpty
+        ? 300.0
+        : barData.reduce((a, b) => a > b ? a : b) * 1.2;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -271,37 +255,30 @@ class _StatsScreenState extends State<StatsScreen> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8E1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.bar_chart, color: Color(0xFFFFA000), size: 18),
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.bar_chart,
+                        color: Color(0xFFFFA000), size: 18),
                   ),
                   const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
+                      const Text('TREND',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B))),
                       Text(
-                        'DAILY TREND',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                      ),
-                      Text(
-                        'Past 7 days food expense',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        filterIndex == 0
+                            ? 'Past 7 days food expense'
+                            : 'Weekly breakdown',
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFF94A3B8)),
                       ),
                     ],
                   ),
                 ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Today: ₱245',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF00C853)),
-                ),
               ),
             ],
           ),
@@ -311,7 +288,7 @@ class _StatsScreenState extends State<StatsScreen> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 280,
+                maxY: maxVal == 0 ? 100 : maxVal,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   show: true,
@@ -320,17 +297,22 @@ class _StatsScreenState extends State<StatsScreen> {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        if (index < 0 || index >= days.length) return const SizedBox.shrink();
-                        final isToday = index == 6;
+                        if (index < 0 || index >= labels.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final isLast = index == labels.length - 1 && filterIndex == 0;
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            days[index],
+                            labels[index],
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 10,
-                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                              color: isToday ? const Color(0xFF00C853) : const Color(0xFF94A3B8),
+                              fontWeight:
+                                  isLast ? FontWeight.bold : FontWeight.normal,
+                              color: isLast
+                                  ? const Color(0xFF00C853)
+                                  : const Color(0xFF94A3B8),
                             ),
                           ),
                         );
@@ -343,26 +325,21 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
                 gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
-                barGroups: List.generate(7, (i) {
-                  final isToday = i == 6;
-                  final isTueWed = i == 3 || i == 4;
-                  Color barColor = isToday
-                      ? const Color(0xFF00C853)
-                      : isTueWed
-                          ? const Color(0xFFFFA000)
-                          : const Color(0xFF81C784).withOpacity(0.6);
-
+                barGroups: List.generate(barData.length, (i) {
+                  final isLast = i == barData.length - 1 && filterIndex == 0;
                   return BarChartGroupData(
                     x: i,
                     barRods: [
                       BarChartRodData(
                         toY: barData[i],
-                        color: barColor,
+                        color: isLast
+                            ? const Color(0xFF00C853)
+                            : const Color(0xFF81C784).withValues(alpha: 0.6),
                         width: 24,
                         borderRadius: BorderRadius.circular(6),
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
-                          toY: 280,
+                          toY: maxVal == 0 ? 100 : maxVal,
                           color: const Color(0xFFF1F5F9),
                         ),
                       ),
@@ -377,15 +354,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildBreakdownCard() {
-    final categories = [
-      {'name': 'Lunch', 'pct': '35%', 'amt': '₱1735.00', 'color': const Color(0xFF00C853)},
-      {'name': 'Dinner', 'pct': '29%', 'amt': '₱1420.00', 'color': const Color(0xFF6C5CE7)},
-      {'name': 'Breakfast', 'pct': '17%', 'amt': '₱850.00', 'color': const Color(0xFFFFA000)},
-      {'name': 'Drinks', 'pct': '11%', 'amt': '₱530.00', 'color': const Color(0xFF00CEC9)},
-      {'name': 'Snacks', 'pct': '8%', 'amt': '₱400.00', 'color': const Color(0xFFFF7675)},
-    ];
-
+  Widget _buildBreakdownCard(List<Map<String, dynamic>> breakdown) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -394,30 +363,55 @@ class _StatsScreenState extends State<StatsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('BREAKDOWN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              Text('Ranked by spending', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+              Text('BREAKDOWN',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B))),
+              Text('Ranked by spending',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
             ],
           ),
           const SizedBox(height: 12),
-          ...categories.map((c) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(radius: 5, backgroundColor: c['color'] as Color),
-                    const SizedBox(width: 10),
-                    Text(c['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                    const Spacer(),
-                    Text('(${c['pct']})', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
-                    const SizedBox(width: 8),
-                    Text(c['amt'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                  ],
-                ),
-              )),
+          if (breakdown.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'No expenses recorded for this period',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+            )
+          else
+            ...breakdown.map((c) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                          radius: 5, backgroundColor: c['color'] as Color),
+                      const SizedBox(width: 10),
+                      Text(c['name'] as String,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E293B))),
+                      const Spacer(),
+                      Text('(${c['pct']})',
+                          style: const TextStyle(
+                              fontSize: 11, color: Color(0xFF94A3B8))),
+                      const SizedBox(width: 8),
+                      Text('₱${(c['amt'] as double).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B))),
+                    ],
+                  ),
+                )),
         ],
       ),
     );
@@ -429,7 +423,7 @@ class _StatsScreenState extends State<StatsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFE8F5E9),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFA5D6A7).withOpacity(0.5)),
+        border: Border.all(color: const Color(0xFFA5D6A7).withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
@@ -439,9 +433,14 @@ class _StatsScreenState extends State<StatsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                Text('You\'re doing great!', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                Text('You\'re doing great!',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2E7D32))),
                 SizedBox(height: 2),
-                Text('Your food spending is 12% lower than last week. Keep it up!', style: TextStyle(fontSize: 11, color: Color(0xFF388E3C))),
+                Text('Keep track of your meals and drinks to stay on budget!',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF388E3C))),
               ],
             ),
           ),
@@ -456,10 +455,9 @@ class _StatsScreenState extends State<StatsScreen> {
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.03),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        ),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4)),
       ],
     );
   }

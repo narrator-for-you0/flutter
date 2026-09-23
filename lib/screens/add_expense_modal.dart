@@ -5,7 +5,7 @@ import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 
 class AddExpenseModal extends StatefulWidget {
-  const AddExpenseModal({Key? key}) : super(key: key);
+  const AddExpenseModal({super.key});
 
   static void show(BuildContext context) {
     showModalBottomSheet(

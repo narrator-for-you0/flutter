@@ -410,7 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00C853).withOpacity(0.25),
+                          color: const Color(0xFF00C853).withValues(alpha: 0.25),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -436,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -468,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -539,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: [
-                        ..._quickAddShortcuts.asMap().entries.map(
+                        ...expenseProvider.quickAddItems.asMap().entries.map(
                           (entry) {
                             final index = entry.key;
                             final item = entry.value;
@@ -550,6 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 item.emoji,
                                 item.title,
                                 item.amount,
+                                item.category,
                                 index,
                               ),
                             );
@@ -646,7 +647,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     )
                   else
-                    ...todayExpenses.map((item) => _buildExpenseCard(item)).toList(),
+                    ...todayExpenses.map((item) => _buildExpenseCard(item)),
 
                   const SizedBox(height: 16),
 
@@ -802,93 +803,99 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickAddChip(
-      BuildContext context, String emoji, String title, double amount, int index) {
-    return InkWell(
-      onTap: () {
-        final quickExpense = Expense(
-          title: title,
-          amount: amount,
-          category: 'Food & Drinks',
-          date: DateTime.now(),
-        );
-        Provider.of<ExpenseProvider>(context, listen: false)
-            .addExpense(quickExpense);
+    BuildContext context, 
+    String emoji, 
+    String title, 
+    double amount, 
+    String category, // 1. Added category parameter
+    int index) {
+  return InkWell(
+    onTap: () {
+      final newExpense = Expense(
+        title: title, // Fixed reference from item.title -> title
+        amount: amount,
+        category: category, // 2. Replaced hardcoded 'Food & Drinks' with dynamic category
+        date: DateTime.now(),
+      );
+      
+      Provider.of<ExpenseProvider>(context, listen: false)
+          .addExpense(newExpense); // Fixed reference from quickExpense -> newExpense
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$title added (+₱${amount.toStringAsFixed(0)})'),
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      },
-      onLongPress: () {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Remove Shortcut?'),
-            content: Text('Do you want to remove "$title" from Quick Add?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _quickAddShortcuts.removeAt(index);
-                  });
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('"$title" removed from Quick Add')),
-                  );
-                },
-                child: const Text('Remove', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$title added (+₱${amount.toStringAsFixed(0)})'),
+          duration: const Duration(seconds: 1),
         ),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF334155),
-              ),
+      );
+    },
+    onLongPress: () {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Remove Shortcut?'),
+          content: Text('Do you want to remove "$title" from Quick Add?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '₱${amount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF15803D),
-                ),
-              ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _quickAddShortcuts.removeAt(index);
+                });
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('"$title" removed from Quick Add')),
+                );
+              },
+              child: const Text('Remove', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
+      );
+    },
+    borderRadius: BorderRadius.circular(16),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
       ),
-    );
-  }
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDCFCE7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '₱${amount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF15803D),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildExpenseCard(Expense item) {
     return Container(

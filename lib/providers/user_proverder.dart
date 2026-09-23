@@ -1,24 +1,38 @@
 import 'package:flutter/material.dart';
 
 class UserProfile {
-  String name;
-  String studentInfo;
-  double monthlyBudget;
-  String avatarEmoji;
+  final String name;
+  final String studentInfo;
+  final double monthlyBudget;
+  final String avatarEmoji;
 
-  UserProfile({
+  const UserProfile({
     required this.name,
     required this.studentInfo,
     required this.monthlyBudget,
     required this.avatarEmoji,
   });
+
+  UserProfile copyWith({
+    String? name,
+    String? studentInfo,
+    double? monthlyBudget,
+    String? avatarEmoji,
+  }) {
+    return UserProfile(
+      name: name ?? this.name,
+      studentInfo: studentInfo ?? this.studentInfo,
+      monthlyBudget: monthlyBudget ?? this.monthlyBudget,
+      avatarEmoji: avatarEmoji ?? this.avatarEmoji,
+    );
+  }
 }
 
-class UserProfileProvider extends ChangeNotifier {
-  UserProfile _user = UserProfile(
-    name: 'IT Student',
-    studentInfo: 'BS Information Technology',
-    monthlyBudget: 3000.0,
+class UserProfileProvider with ChangeNotifier {
+  UserProfile _user = const UserProfile(
+    name: 'Alex',
+    studentInfo: 'BSIT Student',
+    monthlyBudget: 6000.0,
     avatarEmoji: '👨‍💻',
   );
 
@@ -30,17 +44,12 @@ class UserProfileProvider extends ChangeNotifier {
     double? monthlyBudget,
     String? avatarEmoji,
   }) {
-    _user = UserProfile(
-      name: name ?? _user.name,
-      studentInfo: studentInfo ?? _user.studentInfo,
-      monthlyBudget: monthlyBudget ?? _user.monthlyBudget,
-      avatarEmoji: avatarEmoji ?? _user.avatarEmoji,
+    _user = _user.copyWith(
+      name: name,
+      studentInfo: studentInfo,
+      monthlyBudget: monthlyBudget,
+      avatarEmoji: avatarEmoji,
     );
-    notifyListeners();
-  }
-
-  void updateBudget(double newBudget) {
-    _user.monthlyBudget = newBudget;
     notifyListeners();
   }
 }

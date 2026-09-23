@@ -24,8 +24,20 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   String _selectedEmoji = '🍜';
+  String _selectedCategory = 'Lunch';
 
   final List<String> _emojis = ['🍜', '🍳', '🧋', '☕', '🍔', '🍕', '🍰', '🍱'];
+  final List<String> _categories = [
+    'Lunch',
+    'Dinner',
+    'Breakfast',
+    'Drinks',
+    'Snacks',
+    'Fast Food',
+    'Coffee',
+    'Groceries',
+    'Other'
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +68,13 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
               contentPadding: EdgeInsets.zero,
               leading: Text(item.emoji, style: const TextStyle(fontSize: 18)),
               title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('₱${item.amount.toStringAsFixed(0)}'),
+              subtitle: Text('₱${item.amount.toStringAsFixed(0)} • ${item.category}'),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onPressed: () => provider.removeQuickAddItem(item.id),
               ),
             );
-          }).toList(),
+          }),
 
           const Divider(height: 24),
           const Text(
@@ -106,7 +118,9 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
@@ -116,7 +130,27 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 10),
+
+          DropdownButtonFormField<String>(
+            initialValue: _selectedCategory,
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(),
+            ),
+            items: _categories.map((cat) {
+              return DropdownMenuItem(
+                value: cat,
+                child: Text(cat),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _selectedCategory = val);
+              }
+            },
+          ),
 
           SizedBox(
             width: double.infinity,
@@ -128,7 +162,7 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
                 final title = _titleController.text.trim();
                 final amount = double.tryParse(_amountController.text) ?? 0;
                 if (title.isNotEmpty && amount > 0) {
-                  provider.addQuickAddItem(title, amount, _selectedEmoji);
+                  provider.addQuickAddItem(title, amount, _selectedEmoji, _selectedCategory);
                   _titleController.clear();
                   _amountController.clear();
                 }
