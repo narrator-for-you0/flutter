@@ -376,9 +376,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             color: lightBgColor,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            'GCash', // Fallback or expense.paymentMethod
-                            style: TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
+                          child: Text(
+                            expense.paymentMethod,
+                            style: const TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],

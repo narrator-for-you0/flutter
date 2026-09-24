@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/expense.dart';
 import '../services/database_helper.dart';
 
@@ -21,8 +22,14 @@ class QuickAddItem {
 
 class ExpenseProvider with ChangeNotifier {
   List<Expense> _expenses = [];
-  double _monthlyBudget = 6000.0; // Default budget limit
+
+  // Per-month budgets, keyed 'yyyy-MM'. Falls back to _defaultBudget
+  // for any month that hasn't had a budget explicitly set.
+  final Map<String, double> _monthlyBudgets = {};
+  static const double _defaultBudget = 6000.0;
   bool _isLoading = false;
+
+  String _monthKey(DateTime date) => DateFormat('yyyy-MM').format(date);
 
   // Initial Quick Add Items State
   final List<QuickAddItem> _quickAddItems = [
@@ -33,21 +40,39 @@ class ExpenseProvider with ChangeNotifier {
 
   // Getters
   List<Expense> get expenses => _expenses;
-  double get monthlyBudget => _monthlyBudget;
+  double get monthlyBudget => getBudgetForMonth(DateTime.now());
   bool get isLoading => _isLoading;
   List<QuickAddItem> get quickAddItems => _quickAddItems;
 
-  // Calculated Metrics
-  double get totalSpent => _expenses.fold(0.0, (sum, item) => sum + item.amount);
+  // Budget for a specific month; falls back to the default if unset
+  double getBudgetForMonth(DateTime month) {
+    return _monthlyBudgets[_monthKey(month)] ?? _defaultBudget;
+  }
+
+  // Set the budget for a specific month (defaults to the current month)
+  void updateBudget(double newBudget, {DateTime? month}) {
+    final key = _monthKey(month ?? DateTime.now());
+    _monthlyBudgets[key] = newBudget;
+    notifyListeners();
+  }
+
+  // Calculated Metrics (scoped to the current month)
+  double totalSpentForMonth(DateTime month) {
+    return _expenses
+        .where((e) => e.date.year == month.year && e.date.month == month.month)
+        .fold(0.0, (sum, item) => sum + item.amount);
+  }
+
+  double get totalSpent => totalSpentForMonth(DateTime.now());
 
   double get remainingBudget {
-    final remaining = _monthlyBudget - totalSpent;
+    final remaining = monthlyBudget - totalSpent;
     return remaining < 0 ? 0 : remaining;
   }
 
   double get budgetPercentage {
-    if (_monthlyBudget == 0) return 0.0;
-    final pct = totalSpent / _monthlyBudget;
+    if (monthlyBudget == 0) return 0.0;
+    final pct = totalSpent / monthlyBudget;
     return pct > 1.0 ? 1.0 : pct;
   }
 
@@ -78,6 +103,7 @@ class ExpenseProvider with ChangeNotifier {
         amount: expense.amount,
         category: expense.category,
         date: expense.date,
+        paymentMethod: expense.paymentMethod,
       );
       _expenses.insert(0, savedExpense);
     } catch (e) {
@@ -91,12 +117,6 @@ class ExpenseProvider with ChangeNotifier {
   Future<void> deleteExpense(int id) async {
     await DatabaseHelper.instance.deleteExpense(id);
     await fetchExpenses();
-  }
-
-  // Update monthly budget limit
-  void updateBudget(double newBudget) {
-    _monthlyBudget = newBudget;
-    notifyListeners();
   }
 
   // Quick Add Management Methods

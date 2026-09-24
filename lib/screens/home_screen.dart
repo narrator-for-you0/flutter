@@ -4,18 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/expense.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_proverder.dart';
-
-class QuickAddShortcut {
-  final String title;
-  final double amount;
-  final String emoji;
-
-  QuickAddShortcut({
-    required this.title,
-    required this.amount,
-    required this.emoji,
-  });
-}
+import 'manange_quick_modal.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,14 +14,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Dynamic list of Quick Add shortcuts
-  final List<QuickAddShortcut> _quickAddShortcuts = [
-    QuickAddShortcut(title: 'Siomai Rice', amount: 85.0, emoji: '🍜'),
-    QuickAddShortcut(title: 'Egg & Rice', amount: 80.0, emoji: '🍳'),
-    QuickAddShortcut(title: 'Milk Tea', amount: 45.0, emoji: '🧋'),
-    QuickAddShortcut(title: 'Coffee', amount: 50.0, emoji: '☕'),
-  ];
-
   String _getGreeting(DateTime time) {
     final hour = time.hour;
     if (hour < 12) {
@@ -45,14 +26,116 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getEmojiForExpense(Expense item) {
-    final title = item.title.toLowerCase();
-    if (title.contains('siomai')) return '🍜';
-    if (title.contains('egg')) return '🍳';
-    if (title.contains('tea') || title.contains('drink') || title.contains('water')) return '🧋';
-    if (title.contains('rice') || title.contains('meal') || title.contains('lunch') || title.contains('dinner')) return '🍱';
-    if (title.contains('coffee')) return '☕';
-    if (title.contains('fare') || title.contains('jeep') || title.contains('bus') || title.contains('trike')) return '🚌';
-    return '💳';
+    switch (item.category) {
+      case 'Breakfast':
+        return '🍳';
+      case 'Lunch':
+        return '🍜';
+      case 'Dinner':
+        return '🍽️';
+      case 'Drinks':
+        return '🧋';
+      case 'Snacks':
+        return '🍿';
+      case 'Fast Food':
+        return '🍔';
+      case 'Coffee':
+        return '☕';
+      case 'Groceries':
+        return '🛒';
+      default:
+        return '🍽️';
+    }
+  }
+
+  // Ask which payment method was used, then log the Quick Add expense with it
+  void _showPaymentPicker(
+    BuildContext context,
+    String title,
+    double amount,
+    String category,
+  ) {
+    final methods = ['Cash', 'GCash', 'Card'];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Paid with?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$title • ₱${amount.toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: methods.map((method) {
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        final newExpense = Expense(
+                          title: title,
+                          amount: amount,
+                          category: category,
+                          date: DateTime.now(),
+                          paymentMethod: method,
+                        );
+
+                        Provider.of<ExpenseProvider>(context, listen: false)
+                            .addExpense(newExpense);
+
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '$title added (+₱${amount.toStringAsFixed(0)} • $method)',
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFF1F5F9)),
+                        ),
+                        child: Text(
+                          method,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF334155),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // Edit Profile Dialog
@@ -204,105 +287,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           },
-        );
-      },
-    );
-  }
-
-  // Modal to add a custom quick add shortcut
-  void _showAddQuickAddDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final amountController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            top: 20,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Customize Quick Add',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Create a 1-tap shortcut for items you buy often.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  labelText: 'Item Name (e.g., Pastil, Jeep Fare)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Amount (₱)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C853),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    final title = titleController.text.trim();
-                    final amount = double.tryParse(amountController.text) ?? 0.0;
-
-                    if (title.isNotEmpty && amount > 0) {
-                      setState(() {
-                        _quickAddShortcuts.add(
-                          QuickAddShortcut(
-                            title: title,
-                            amount: amount,
-                            emoji: '🍱',
-                          ),
-                        );
-                      });
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('"$title" added to Quick Add!')),
-                      );
-                    }
-                  },
-                  child: const Text(
-                    'Save Shortcut',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
         );
       },
     );
@@ -521,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => _showAddQuickAddDialog(context),
+                        onTap: () => ManageQuickAddModal.show(context),
                         child: const Text(
                           '+ Customize',
                           style: TextStyle(
@@ -551,13 +535,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 item.title,
                                 item.amount,
                                 item.category,
-                                index,
+                                item.id,
                               ),
                             );
                           },
                         ),
                         InkWell(
-                          onTap: () => _showAddQuickAddDialog(context),
+                          onTap: () => ManageQuickAddModal.show(context),
                           borderRadius: BorderRadius.circular(16),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -808,26 +792,9 @@ class _HomeScreenState extends State<HomeScreen> {
     String title, 
     double amount, 
     String category, // 1. Added category parameter
-    int index) {
+    String id) {
   return InkWell(
-    onTap: () {
-      final newExpense = Expense(
-        title: title, // Fixed reference from item.title -> title
-        amount: amount,
-        category: category, // 2. Replaced hardcoded 'Food & Drinks' with dynamic category
-        date: DateTime.now(),
-      );
-      
-      Provider.of<ExpenseProvider>(context, listen: false)
-          .addExpense(newExpense); // Fixed reference from quickExpense -> newExpense
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$title added (+₱${amount.toStringAsFixed(0)})'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    },
+    onTap: () => _showPaymentPicker(context, title, amount, category),
     onLongPress: () {
       showDialog(
         context: context,
@@ -841,9 +808,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             TextButton(
               onPressed: () {
-                setState(() {
-                  _quickAddShortcuts.removeAt(index);
-                });
+                Provider.of<ExpenseProvider>(context, listen: false)
+                    .removeQuickAddItem(id);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('"$title" removed from Quick Add')),
@@ -931,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${DateFormat('h:mm a').format(item.date)} • Cash',
+                  '${DateFormat('h:mm a').format(item.date)} • ${item.paymentMethod}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Colors.grey,

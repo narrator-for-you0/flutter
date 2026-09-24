@@ -113,8 +113,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       amount: amount,
       category: selectedCategory,
       date: fullDateTime,
-      // Pass paymentMethod/notes if defined in your Expense model:
-      // paymentMethod: selectedPayment,
+      paymentMethod: selectedPayment,
+      // Pass notes if defined in your Expense model:
       // notes: _notesController.text.trim(),
     );
 

@@ -152,11 +152,14 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
             },
           ),
 
+          const SizedBox(height: 20),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00C853),
+                
               ),
               onPressed: () {
                 final title = _titleController.text.trim();
@@ -167,7 +170,7 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
                   _amountController.clear();
                 }
               },
-              child: const Text('Add Shortcut', style: TextStyle(color: Colors.white)),
+              child: const Text('Add Shortcut', style: TextStyle( color: Colors.white)),
             ),
           ),
         ],

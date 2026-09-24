@@ -4,6 +4,7 @@ class Expense {
   final double amount;
   final String category;
   final DateTime date;
+  final String paymentMethod;
 
   Expense({
     this.id,
@@ -11,6 +12,7 @@ class Expense {
     required this.amount,
     required this.category,
     required this.date,
+    this.paymentMethod = 'Cash',
   });
 
   // Convert Expense object into a Map for SQLite insertion
@@ -21,6 +23,7 @@ class Expense {
       'amount': amount,
       'category': category,
       'date': date.toIso8601String(),
+      'paymentMethod': paymentMethod,
     };
   }
 
@@ -32,6 +35,7 @@ class Expense {
       amount: map['amount'],
       category: map['category'],
       date: DateTime.parse(map['date']),
+      paymentMethod: map['paymentMethod'] as String? ?? 'Cash',
     );
   }
 }
