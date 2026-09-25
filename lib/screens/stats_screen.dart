@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/expense_provider.dart';
+import '../widgets/spending_calendar.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: const Key('stats_screen'));
@@ -12,6 +13,8 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   int _selectedFilter = 1; // 0: This Week, 1: This Month, 2: Last Month
+  int _view = 0; // 0: Overview, 1: Calendar
+  bool _byType = false; // breakdown grouping: false = subcategory, true = major type
 
   @override
   Widget build(BuildContext context) {
@@ -22,13 +25,16 @@ class _StatsScreenState extends State<StatsScreen> {
           builder: (context, provider, child) {
             final total = provider.getTotalSpending(_selectedFilter);
             final dailyAvg = provider.getDailyAverage(_selectedFilter);
-            final breakdown = provider.getCategoryBreakdown(_selectedFilter);
+            final breakdown = _byType
+                ? provider.getTypeBreakdown(_selectedFilter)
+                : provider.getCategoryBreakdown(_selectedFilter);
             final barData = provider.getBarChartData(_selectedFilter);
             final count = provider.getFilteredExpenses(_selectedFilter).length;
             final periodLabel = provider.getPeriodLabel(_selectedFilter);
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              // bottom padding keeps the last card clear of the + button
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -44,14 +50,22 @@ class _StatsScreenState extends State<StatsScreen> {
                           color: Color(0xFF1E293B),
                         ),
                       ),
-                      Text(
-                        periodLabel,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-                      ),
+                      if (_view == 0)
+                        Text(
+                          periodLabel,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
+                  // Overview / Calendar switch
+                  _buildViewSwitch(),
+                  const SizedBox(height: 16),
+
+                  if (_view == 1)
+                    const SpendingCalendar()
+                  else ...[
                   // Filter Buttons
                   _buildFilterSegment(),
                   const SizedBox(height: 20),
@@ -73,9 +87,9 @@ class _StatsScreenState extends State<StatsScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildMetricCard(
-                          title: 'FOOD PURCHASES',
+                          title: 'TRANSACTIONS',
                           value: '$count',
-                          subtitle: 'meals & drinks',
+                          subtitle: 'expenses logged',
                         ),
                       ),
                     ],
@@ -92,12 +106,115 @@ class _StatsScreenState extends State<StatsScreen> {
 
                   // Insight Banner
                   _buildInsightBanner(),
+                  ],
                 ],
               ),
             );
           },
         ),
       ),
+    );
+  }
+
+  // Overview | Calendar
+  Widget _buildViewSwitch() {
+    Widget button(String label, IconData icon, int index) {
+      final isSelected = _view == index;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _view = index),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 16,
+                    color: isSelected
+                        ? const Color(0xFF00C853)
+                        : const Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: isSelected
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          button('Overview', Icons.donut_large, 0),
+          button('Calendar', Icons.calendar_month, 1),
+        ],
+      ),
+    );
+  }
+
+  // By Category | By Type (inside the donut card)
+  Widget _buildBreakdownToggle() {
+    Widget chip(String label, bool value) {
+      final isSelected = _byType == value;
+      return GestureDetector(
+        onTap: () => setState(() => _byType = value),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF00C853) : Colors.transparent,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isSelected
+                  ? const Color(0xFF15803D)
+                  : const Color(0xFF94A3B8),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        chip('By Category', false),
+        chip('By Type', true),
+      ],
     );
   }
 
@@ -198,9 +315,8 @@ class _StatsScreenState extends State<StatsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          const Text('Category Overview',
-              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          const SizedBox(height: 12),
+          _buildBreakdownToggle(),
         ],
       ),
     );
@@ -271,7 +387,7 @@ class _StatsScreenState extends State<StatsScreen> {
                               color: Color(0xFF1E293B))),
                       Text(
                         filterIndex == 0
-                            ? 'Past 7 days food expense'
+                            ? 'Past 7 days spending'
                             : 'Weekly breakdown',
                         style: const TextStyle(
                             fontSize: 11, color: Color(0xFF94A3B8)),

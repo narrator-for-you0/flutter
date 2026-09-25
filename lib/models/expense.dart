@@ -1,8 +1,10 @@
+import 'expense_category.dart';
+
 class Expense {
   final int? id;
   final String title;
   final double amount;
-  final String category;
+  final String category; // subcategory label, e.g. 'Lunch' or 'Jeepney'
   final DateTime date;
   final String paymentMethod;
 
@@ -14,6 +16,9 @@ class Expense {
     required this.date,
     this.paymentMethod = 'Cash',
   });
+
+  /// Major type ('Food' / 'Transportation' / 'Other'), derived from [category].
+  String get type => CategoryData.typeOfCategory(category).name;
 
   // Convert Expense object into a Map for SQLite insertion
   Map<String, dynamic> toMap() {

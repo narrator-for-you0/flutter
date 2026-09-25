@@ -10,6 +10,7 @@ class EditBudgetModal extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const EditBudgetModal(),
     );
@@ -21,6 +22,7 @@ class EditBudgetModal extends StatefulWidget {
 
 class _EditBudgetModalState extends State<EditBudgetModal> {
   late final TextEditingController _amountController;
+  late final TextEditingController _dailyLimitController;
   late DateTime _selectedMonth;
 
   static const primaryGreen = Color(0xFF00C853);
@@ -37,6 +39,12 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
         .getBudgetForMonth(_selectedMonth);
     _amountController =
         TextEditingController(text: currentBudget.toStringAsFixed(0));
+
+    // Empty = automatic (budget / days in month)
+    final custom =
+        Provider.of<ExpenseProvider>(context, listen: false).customDailyLimit;
+    _dailyLimitController =
+        TextEditingController(text: custom?.toStringAsFixed(0) ?? '');
   }
 
   void _changeMonth(int delta) {
@@ -52,14 +60,17 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
   @override
   void dispose() {
     _amountController.dispose();
+    _dailyLimitController.dispose();
     super.dispose();
   }
 
   void _save() {
     final value = double.tryParse(_amountController.text.trim());
     if (value != null && value > 0) {
-      Provider.of<ExpenseProvider>(context, listen: false)
-          .updateBudget(value, month: _selectedMonth);
+      final provider = Provider.of<ExpenseProvider>(context, listen: false);
+      provider.updateBudget(value, month: _selectedMonth);
+      // Empty / invalid -> null -> automatic daily limit
+      provider.setDailyLimit(double.tryParse(_dailyLimitController.text.trim()));
       Navigator.pop(context);
     }
   }
@@ -68,6 +79,8 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final currentAmount = double.tryParse(_amountController.text) ?? 0;
+    final autoDaily = currentAmount /
+        DateUtils.getDaysInMonth(_selectedMonth.year, _selectedMonth.month);
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -77,7 +90,8 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -257,6 +271,48 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Daily limit (optional override)
+            const Text(
+              'DAILY LIMIT (₱) — OPTIONAL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: labelColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: TextField(
+                controller: _dailyLimitController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: darkText,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  prefixText: '₱ ',
+                  hintText: 'Auto: ₱${autoDaily.toStringAsFixed(0)} per day',
+                  hintStyle: const TextStyle(fontSize: 14, color: labelColor),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              "Leave empty to use your budget ÷ days in the month. You'll get a warning when a day goes over.",
+              style: TextStyle(fontSize: 11, color: labelColor, height: 1.3),
+            ),
             const SizedBox(height: 24),
 
             // Save button
@@ -283,6 +339,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

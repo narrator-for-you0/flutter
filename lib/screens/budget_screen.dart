@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
 import 'edit_budget_modal.dart';
+import '../widgets/daily_limit_widgets.dart';
 
 class BudgetScreen extends StatelessWidget {
   const BudgetScreen({super.key});
@@ -26,7 +27,8 @@ class BudgetScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
+                  Expanded(
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
                       Text(
@@ -40,6 +42,8 @@ class BudgetScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  ),
+                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () => EditBudgetModal.show(context),
                     icon: const Icon(Icons.edit, size: 14, color: Color(0xFF00C853)),
@@ -198,7 +202,14 @@ class BudgetScreen extends StatelessWidget {
                 ),
               const SizedBox(height: 16),
 
-              // Recommended Daily Limit Card
+              // Today vs. daily limit (set the limit in Edit Budget)
+              DailyLimitCard(
+                spent: provider.todaySpent,
+                limit: provider.dailyLimit,
+              ),
+              const SizedBox(height: 16),
+
+              // Suggested pace for the rest of the month
               Builder(builder: (context) {
                 final now = DateTime.now();
                 final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
@@ -223,7 +234,7 @@ class BudgetScreen extends StatelessWidget {
                               const Icon(Icons.event_available, size: 16, color: Color(0xFF00C853)),
                               const SizedBox(width: 8),
                               Text(
-                                'RECOMMENDED DAILY LIMIT',
+                                'SUGGESTED DAILY SPEND',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/expense_category.dart';
 import '../providers/expense_provider.dart';
 
 class ManageQuickAddModal extends StatefulWidget {
@@ -9,6 +10,7 @@ class ManageQuickAddModal extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -24,20 +26,51 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   String _selectedEmoji = '🍜';
+  ExpenseType _selectedType = CategoryData.food;
   String _selectedCategory = 'Lunch';
 
-  final List<String> _emojis = ['🍜', '🍳', '🧋', '☕', '🍔', '🍕', '🍰', '🍱'];
-  final List<String> _categories = [
-    'Lunch',
-    'Dinner',
-    'Breakfast',
-    'Drinks',
-    'Snacks',
-    'Fast Food',
-    'Coffee',
-    'Groceries',
-    'Other'
-  ];
+  final List<String> _emojis = ['🍜', '🍳', '🧋', '☕', '🍔', '🍕', '🍰', '🍱', '🚌', '🛺', '📚'];
+
+  Widget _buildTypeChips() {
+    return Row(
+      children: CategoryData.types.map((t) {
+        final isSelected = _selectedType.name == t.name;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (isSelected) return;
+              setState(() {
+                _selectedType = t;
+                _selectedCategory = t.subCategories.first.label;
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected ? t.softColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? t.color : Colors.grey.shade300,
+                ),
+              ),
+              child: Text(
+                '${t.emoji} ${t.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? t.color : Colors.black87,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +84,8 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
         top: 20,
         bottom: bottomInset + 20,
       ),
-      child: Column(
+      child: SingleChildScrollView(
+       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -84,7 +118,8 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
           const SizedBox(height: 10),
 
           // Emoji Selector
-          Row(
+          Wrap(
+            runSpacing: 8,
             children: _emojis.map((emoji) {
               return GestureDetector(
                 onTap: () => setState(() => _selectedEmoji = emoji),
@@ -133,16 +168,21 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
 
           const SizedBox(height: 10),
 
+          _buildTypeChips(),
+          const SizedBox(height: 10),
+
           DropdownButtonFormField<String>(
+            // new key => rebuilds with the right initialValue when the type changes
+            key: ValueKey(_selectedType.name),
             initialValue: _selectedCategory,
             decoration: const InputDecoration(
               labelText: 'Category',
               border: OutlineInputBorder(),
             ),
-            items: _categories.map((cat) {
+            items: _selectedType.subCategories.map((sub) {
               return DropdownMenuItem(
-                value: cat,
-                child: Text(cat),
+                value: sub.label,
+                child: Text('${sub.emoji}  ${sub.label}'),
               );
             }).toList(),
             onChanged: (val) {
@@ -174,6 +214,7 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

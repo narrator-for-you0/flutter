@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/expense.dart';
+import '../models/expense_category.dart';
+import '../widgets/daily_limit_widgets.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_proverder.dart';
 import 'manange_quick_modal.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onViewAll});
+
+  /// Called by "View All →" (main.dart switches to the History tab).
+  final VoidCallback? onViewAll;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,28 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _getEmojiForExpense(Expense item) {
-    switch (item.category) {
-      case 'Breakfast':
-        return '🍳';
-      case 'Lunch':
-        return '🍜';
-      case 'Dinner':
-        return '🍽️';
-      case 'Drinks':
-        return '🧋';
-      case 'Snacks':
-        return '🍿';
-      case 'Fast Food':
-        return '🍔';
-      case 'Coffee':
-        return '☕';
-      case 'Groceries':
-        return '🛒';
-      default:
-        return '🍽️';
-    }
-  }
+  String _getEmojiForExpense(Expense item) => CategoryData.emojiFor(item.category);
 
   // Ask which payment method was used, then log the Quick Add expense with it
   void _showPaymentPicker(
@@ -87,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: methods.map((method) {
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         final newExpense = Expense(
                           title: title,
                           amount: amount,
@@ -96,11 +80,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           paymentMethod: method,
                         );
 
-                        Provider.of<ExpenseProvider>(context, listen: false)
-                            .addExpense(newExpense);
+                        final provider =
+                            Provider.of<ExpenseProvider>(context, listen: false);
+                        final messenger = ScaffoldMessenger.of(context);
 
+                        // Close the picker, then log the expense
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        final check = await provider.addExpense(newExpense);
+                        if (!context.mounted) return;
+
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(
                               '$title added (+₱${amount.toStringAsFixed(0)} • $method)',
@@ -108,6 +97,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             duration: const Duration(seconds: 1),
                           ),
                         );
+
+                        // Pop-up if this quick-add pushed today over the limit
+                        await DailyLimitAlert.handle(context, check);
                       },
                       child: Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -142,10 +134,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showEditProfileDialog(BuildContext context) {
     final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
     final user = profileProvider.user;
+    final expenseProvider = Provider.of<ExpenseProvider>(context, listen: false);
 
     final nameController = TextEditingController(text: user.name);
     final infoController = TextEditingController(text: user.studentInfo);
-    final budgetController = TextEditingController(text: user.monthlyBudget.toStringAsFixed(0));
+    // the budget lives in ExpenseProvider (same one the Budget tab edits)
+    final budgetController = TextEditingController(text: expenseProvider.monthlyBudget.toStringAsFixed(0));
     String selectedEmoji = user.avatarEmoji;
 
     final List<String> avatarOptions = ['👨‍💻', '👩‍💻', '🎓', '📚', '⚡', '💻', '🎒'];
@@ -153,6 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -166,7 +161,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 right: 20,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               ),
-              child: Column(
+              child: SingleChildScrollView(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -263,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: () {
                         final newName = nameController.text.trim();
                         final newInfo = infoController.text.trim();
-                        final newBudget = double.tryParse(budgetController.text) ?? user.monthlyBudget;
+                        final newBudget = double.tryParse(budgetController.text) ?? expenseProvider.monthlyBudget;
 
                         profileProvider.updateProfile(
                           name: newName.isNotEmpty ? newName : user.name,
@@ -271,6 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           monthlyBudget: newBudget,
                           avatarEmoji: selectedEmoji,
                         );
+                        if (newBudget > 0) expenseProvider.updateBudget(newBudget);
 
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -284,6 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ],
+              ),
               ),
             );
           },
@@ -300,8 +298,9 @@ class _HomeScreenState extends State<HomeScreen> {
         final user = userProvider.user;
 
         final totalSpent = expenseProvider.totalSpent;
-        final remaining = user.monthlyBudget - totalSpent;
-        final budgetPercentage = user.monthlyBudget > 0 ? (totalSpent / user.monthlyBudget) : 0.0;
+        final monthlyBudget = expenseProvider.monthlyBudget;
+        final remaining = monthlyBudget - totalSpent;
+        final budgetPercentage = monthlyBudget > 0 ? (totalSpent / monthlyBudget) : 0.0;
         final percentageInt = (budgetPercentage * 100).toInt();
 
         final now = DateTime.now();
@@ -335,7 +334,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
+                      Expanded(
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -349,12 +349,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              Text(
-                                '${_getGreeting(now)}, ${user.name}!',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1E293B),
+                              Flexible(
+                                child: Text(
+                                  '${_getGreeting(now)}, ${user.name}!',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -370,6 +374,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
+                      ),
+                      const SizedBox(width: 12),
                       GestureDetector(
                         onTap: () => _showEditProfileDialog(context),
                         child: CircleAvatar(
@@ -477,17 +483,28 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              '(Yesterday: ₱${yesterdayTotal.toStringAsFixed(0)})',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
+                            Flexible(
+                              child: Text(
+                                '(Yesterday: ₱${yesterdayTotal.toStringAsFixed(0)})',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Today vs. daily limit
+                  DailyLimitCard(
+                    spent: todayTotal,
+                    limit: expenseProvider.dailyLimit,
                   ),
                   const SizedBox(height: 24),
 
@@ -607,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       GestureDetector(
-                        onTap: () {},
+                        onTap: widget.onViewAll,
                         child: const Text(
                           'View All →',
                           style: TextStyle(

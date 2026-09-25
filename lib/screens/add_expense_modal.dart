@@ -3,18 +3,33 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
 import '../models/expense.dart';
+import '../models/expense_category.dart';
+import '../widgets/daily_limit_widgets.dart';
 
 class AddExpenseModal extends StatefulWidget {
-  const AddExpenseModal({super.key});
+  /// Pre-fill the date (e.g. from the calendar's "+ Add for Sep 20").
+  final DateTime? initialDate;
 
-  static void show(BuildContext context) {
-    showModalBottomSheet(
+  /// When set, the sheet edits this expense instead of adding a new one.
+  final Expense? existing;
+
+  const AddExpenseModal({super.key, this.initialDate, this.existing});
+
+  /// Resolves to the date of the expense that was saved, or null if the
+  /// sheet was dismissed without saving.
+  static Future<DateTime?> show(
+    BuildContext context, {
+    DateTime? initialDate,
+    Expense? existing,
+  }) {
+    return showModalBottomSheet<DateTime>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => const AddExpenseModal(),
+      builder: (_) => AddExpenseModal(initialDate: initialDate, existing: existing),
     );
   }
 
@@ -27,6 +42,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
 
+  ExpenseType selectedType = CategoryData.food;
+  bool _saving = false;
   String selectedCategory = 'Lunch';
   String selectedPayment = 'GCash';
   DateTime selectedDate = DateTime.now();
@@ -47,19 +64,111 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     'Egg & Rice'
   ];
 
-  final List<Map<String, String>> categories = [
-    {'icon': '🍳', 'label': 'Breakfast'},
-    {'icon': '🍜', 'label': 'Lunch'},
-    {'icon': '🍽️', 'label': 'Dinner'},
-    {'icon': '🍪', 'label': 'Snacks'},
-    {'icon': '🥤', 'label': 'Drinks'},
-    {'icon': '🍔', 'label': 'Fast Food'},
-    {'icon': '☕', 'label': 'Coffee'},
-    {'icon': '🛒', 'label': 'Groceries'},
-    {'icon': '🍴', 'label': 'Other'},
-  ];
 
   final List<String> paymentMethods = ['Cash', 'GCash', 'Card'];
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _foodNameController.text = e.title;
+      _amountController.text = e.amount.toStringAsFixed(2);
+      selectedType = CategoryData.typeOfCategory(e.category);
+      selectedCategory = e.category;
+      if (paymentMethods.contains(e.paymentMethod)) {
+        selectedPayment = e.paymentMethod;
+      }
+      selectedDate = e.date;
+      selectedTime = TimeOfDay.fromDateTime(e.date);
+    } else if (widget.initialDate != null) {
+      final d = widget.initialDate!;
+      selectedDate = DateTime(d.year, d.month, d.day);
+    }
+  }
+
+  // Name-field text + quick suggestions change with the selected type
+  String get _nameLabel {
+    switch (selectedType.name) {
+      case 'Transportation':
+        return 'TRIP / DESCRIPTION';
+      case 'Other':
+        return 'DESCRIPTION';
+      default:
+        return 'FOOD NAME';
+    }
+  }
+
+  String get _nameHint {
+    switch (selectedType.name) {
+      case 'Transportation':
+        return 'e.g., Jeepney to campus, Grab home';
+      case 'Other':
+        return 'e.g., Bond paper, Load, Notebook';
+      default:
+        return 'e.g., Pepperoni Pizza, Milk Tea';
+    }
+  }
+
+  List<String> get _suggestions {
+    switch (selectedType.name) {
+      case 'Transportation':
+        return ['Jeepney fare', 'Tricycle', 'Habal-habal', 'Grab', 'Gas'];
+      case 'Other':
+        return ['Bond paper', 'Printing', 'Load', 'Notebook'];
+      default:
+        return quickFoodSuggestions;
+    }
+  }
+
+  Widget _buildTypeSelector() {
+    return Row(
+      children: CategoryData.types.map((t) {
+        final isSelected = selectedType.name == t.name;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (isSelected) return;
+              setState(() {
+                selectedType = t;
+                selectedCategory = t.subCategories.first.label;
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? t.softColor : inputBgColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? t.color : Colors.transparent,
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(t.emoji, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text(
+                    t.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? t.color : textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
 
   @override
   void dispose() {
@@ -82,7 +191,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     });
   }
 
-  void _saveExpense() {
+  Future<void> _saveExpense() async {
     final title = _foodNameController.text.trim();
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText);
@@ -91,7 +200,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     if (title.isEmpty || amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid food name and amount'),
+          content: Text('Please enter a valid name and amount'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -118,15 +227,48 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       // notes: _notesController.text.trim(),
     );
 
-    // Commit to Provider
-    Provider.of<ExpenseProvider>(context, listen: false).addExpense(newExpense);
+    if (_saving) return;
+    _saving = true;
 
-    // Close Modal & Display Feedback
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Commit to Provider (edit keeps the original id)
+    final LimitCheck check;
+    if (_isEditing) {
+      final original = widget.existing!;
+      check = await provider.updateExpense(
+        original,
+        Expense(
+          id: original.id,
+          title: title,
+          amount: amount,
+          category: selectedCategory,
+          date: fullDateTime,
+          paymentMethod: selectedPayment,
+        ),
+      );
+    } else {
+      check = await provider.addExpense(newExpense);
+    }
+    if (!mounted) return;
+
+    // Daily-limit pop-up (shown over the sheet if this expense crossed the limit)
+    await DailyLimitAlert.handle(context, check);
+    if (!mounted) return;
+
+    // Close Modal (returning the saved date) & Display Feedback
+    Navigator.pop(context, fullDateTime);
+    final overNow = check.isOver && !check.crossed;
+    final verb = _isEditing ? 'Updated' : 'Added';
+    messenger.showSnackBar(
       SnackBar(
-        content: Text('Added $title (₱${amount.toStringAsFixed(2)})'),
-        backgroundColor: primaryGreen,
+        content: Text(
+          overNow
+              ? '$verb $title (₱${amount.toStringAsFixed(2)}) • ₱${check.overBy.toStringAsFixed(0)} over daily limit'
+              : '$verb $title (₱${amount.toStringAsFixed(2)})',
+        ),
+        backgroundColor: overNow ? Colors.redAccent : primaryGreen,
       ),
     );
   }
@@ -157,9 +299,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   icon: const Icon(Icons.arrow_back, color: textColor),
                   onPressed: () => Navigator.pop(context),
                 ),
-                const Text(
-                  'Add Expense',
-                  style: TextStyle(
+                Text(
+                  _isEditing ? 'Edit Expense' : 'Add Expense',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -173,12 +315,17 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             ),
             const SizedBox(height: 16),
 
-            // FOOD NAME SECTION
-            _buildSectionLabel('FOOD NAME'),
+            // TYPE SECTION
+            _buildSectionLabel('TYPE'),
+            _buildTypeSelector(),
+            const SizedBox(height: 16),
+
+            // NAME SECTION
+            _buildSectionLabel(_nameLabel),
             TextField(
               controller: _foodNameController,
               decoration: InputDecoration(
-                hintText: 'e.g., Pepperoni Pizza, Milk Tea',
+                hintText: _nameHint,
                 hintStyle: const TextStyle(color: labelColor, fontSize: 13),
                 filled: true,
                 fillColor: Colors.white,
@@ -199,7 +346,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: quickFoodSuggestions.map((item) {
+              children: _suggestions.map((item) {
                 return GestureDetector(
                   onTap: () {
                     setState(() {
@@ -271,11 +418,11 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             const SizedBox(height: 16),
 
             // CATEGORY GRID SECTION
-            _buildSectionLabel('CATEGORY'),
+            _buildSectionLabel('CATEGORY (${selectedType.name.toUpperCase()})'),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: categories.length,
+              itemCount: selectedType.subCategories.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 childAspectRatio: 2.8,
@@ -283,12 +430,12 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                 mainAxisSpacing: 8,
               ),
               itemBuilder: (context, index) {
-                final cat = categories[index];
-                final isSelected = selectedCategory == cat['label'];
+                final cat = selectedType.subCategories[index];
+                final isSelected = selectedCategory == cat.label;
                 return GestureDetector(
                   onTap: () {
                     setState(() {
-                      selectedCategory = cat['label']!;
+                      selectedCategory = cat.label;
                     });
                   },
                   child: Container(
@@ -303,14 +450,18 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(cat['icon']!, style: const TextStyle(fontSize: 13)),
+                        Text(cat.emoji, style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 6),
-                        Text(
-                          cat['label']!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? primaryGreen : textColor,
+                        Flexible(
+                          child: Text(
+                            cat.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected ? primaryGreen : textColor,
+                            ),
                           ),
                         ),
                       ],
@@ -476,8 +627,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   ),
                 ),
                 icon: const Icon(Icons.check, color: Colors.white, size: 20),
-                label: const Text(
-                  'Save Expense',
+                label: Text(
+                  _isEditing ? 'Save Changes' : 'Save Expense',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,

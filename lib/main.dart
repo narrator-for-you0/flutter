@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,9 +9,22 @@ import 'screens/budget_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/stats_screen.dart';
+import 'widgets/daily_limit_widgets.dart';
 
 void main() {
   runApp(const MyApp());
+}
+
+/// Lets mouse / trackpad / stylus drag-scroll like a finger does.
+/// (Phones already scroll by touch; this makes Windows/desktop testing behave the same.)
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
 }
 
 class MyApp extends StatelessWidget {
@@ -20,12 +34,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ExpenseProvider()),
-        ChangeNotifierProvider(create: (_) => UserProfileProvider()),
+        // init() loads saved settings (budgets, daily limit, quick add) + expenses
+        ChangeNotifierProvider(create: (_) => ExpenseProvider()..init()),
+        ChangeNotifierProvider(create: (_) => UserProfileProvider()..load()),
       ],
       child: MaterialApp(
         title: 'Food Allowance Tracker',
         debugShowCheckedModeBanner: false,
+        scrollBehavior: AppScrollBehavior(),
         theme: ThemeData(
           primarySwatch: Colors.green,
           scaffoldBackgroundColor: Colors.white,
@@ -46,8 +62,8 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0; // default to the first screen (HomeScreen) 
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
+  late final List<Widget> _screens = [
+    HomeScreen(onViewAll: () => setState(() => _selectedIndex = 1)),
     const HistoryScreen(),
     const StatsScreen(),
     const BudgetScreen(),
@@ -57,9 +73,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: _screens,
+        child: Column(
+          children: [
+            // Shows only if you open the app already over today's limit
+            const DailyLimitBanner(),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: _screens,
+              ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
