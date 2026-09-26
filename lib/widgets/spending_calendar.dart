@@ -97,6 +97,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     _followSavedDate(saved);
   }
 
+  Future<void> _openEditIncome(Income income) async {
+    final saved = await AddIncomeModal.show(context, existing: income);
+    _followSavedDate(saved);
+  }
+
   void _deleteIncome(Income income) {
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     final messenger = ScaffoldMessenger.of(context);
@@ -839,6 +844,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           ),
           if (incomeItems.isNotEmpty) ...[
             const SizedBox(height: 10),
+            const Text(
+              'Tap income to edit • Swipe left to delete',
+              style: TextStyle(fontSize: 10, color: _muted),
+            ),
+            const SizedBox(height: 6),
             ...incomeItems.map(_buildIncomeRow),
           ],
           if (allItems.isNotEmpty) ...[
@@ -969,24 +979,29 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           background: deleteBackground(),
           secondaryBackground: deleteBackground(),
           onDismissed: (_) => _deleteIncome(income),
-          child: Container(
+          child: Material(
             color: const Color(0xFFEFF6FF),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.add_circle, size: 16, color: Color(0xFF2563EB)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    income.note.isEmpty ? 'Income' : income.note,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _dark),
-                  ),
+            child: InkWell(
+              onTap: () => _openEditIncome(income),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_circle, size: 16, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        income.note.isEmpty ? 'Income' : income.note,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _dark),
+                      ),
+                    ),
+                    Text(
+                      '+₱${income.amount.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                    ),
+                  ],
                 ),
-                Text(
-                  '+₱${income.amount.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
-                ),
-              ],
+              ),
             ),
           ),
         ),
