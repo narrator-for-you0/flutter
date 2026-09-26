@@ -543,7 +543,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: SizedBox(
-        height: 54,
+        height: 74,
         child: Row(
           children: [
             ...week.map((date) {
@@ -571,7 +571,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               child: Text(
                 weekTotal > 0 ? _compact(weekTotal) : '–',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _muted),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
               ),
             ),
           ],
@@ -628,7 +628,19 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       borderWidth = 1.5;
     }
 
-    return GestureDetector(
+    return Tooltip(
+      waitDuration: const Duration(milliseconds: 350),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: EdgeInsets.zero,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      richMessage: _buildDayTooltip(date, provider),
+      child: GestureDetector(
       onTap: () => setState(() => _selected = date),
       child: Stack(
         clipBehavior: Clip.none,
@@ -645,16 +657,16 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 Text(
                   '${date.day}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: (isToday || isSelected) ? FontWeight.bold : FontWeight.w500,
                     color: _dark,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   amount > 0 ? _compact(amount) : '',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                     color: amountColor,
                   ),
@@ -692,7 +704,54 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             const Positioned(bottom: -4, left: -2, child: Text('🔥', style: TextStyle(fontSize: 11))),
         ],
       ),
+      ),
     );
+  }
+
+  /// Hover/long-press preview: what's actually behind a day's number.
+  InlineSpan _buildDayTooltip(DateTime date, ExpenseProvider provider) {
+    final items = provider.getExpensesOn(date);
+    final incomeItems = provider.getIncomeOn(date);
+    final total = items.fold(0.0, (sum, e) => sum + e.amount);
+    final totalIncome = incomeItems.fold(0.0, (sum, i) => sum + i.amount);
+
+    const headerStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white);
+    const lineStyle = TextStyle(fontSize: 11.5, color: Colors.white, height: 1.5);
+    const incomeStyle = TextStyle(fontSize: 11.5, color: Color(0xFF86EFAC), height: 1.5);
+    const mutedStyle = TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), height: 1.5);
+
+    final children = <InlineSpan>[
+      TextSpan(text: DateFormat('EEEE, MMM d').format(date), style: headerStyle),
+    ];
+
+    if (items.isEmpty && incomeItems.isEmpty) {
+      children.add(const TextSpan(text: '\nNo activity logged', style: mutedStyle));
+    } else {
+      const maxLines = 5;
+      for (final e in items.take(maxLines)) {
+        children.add(TextSpan(
+          text: '\n${CategoryData.emojiFor(e.category)} ${e.title} — ₱${e.amount.toStringAsFixed(0)}',
+          style: lineStyle,
+        ));
+      }
+      if (items.length > maxLines) {
+        children.add(TextSpan(text: '\n+${items.length - maxLines} more', style: mutedStyle));
+      }
+      for (final i in incomeItems) {
+        children.add(TextSpan(
+          text: '\n+ ₱${i.amount.toStringAsFixed(0)}'
+              '${i.note.isEmpty ? ' income' : ' • ${i.note}'}',
+          style: incomeStyle,
+        ));
+      }
+      children.add(TextSpan(
+        text: '\nTotal: ₱${total.toStringAsFixed(0)}'
+            '${totalIncome > 0 ? '  (+₱${totalIncome.toStringAsFixed(0)} in)' : ''}',
+        style: headerStyle,
+      ));
+    }
+
+    return TextSpan(children: children);
   }
 
   String _compact(double v) {
@@ -838,14 +897,16 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 child: OutlinedButton.icon(
                   onPressed: _openAdd,
                   icon: const Icon(Icons.remove, size: 18, color: _primaryGreen),
-                  label: Text(
-                    'Expense for ${DateFormat('MMM d').format(_selected)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _primaryGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                  label: Flexible(
+                    child: Text(
+                      'Expense • ${DateFormat('MMM d').format(_selected)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _primaryGreen,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -862,12 +923,16 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 child: OutlinedButton.icon(
                   onPressed: _openAddIncome,
                   icon: const Icon(Icons.add, size: 18, color: Color(0xFF2563EB)),
-                  label: const Text(
-                    'Income',
-                    style: TextStyle(
-                      color: Color(0xFF2563EB),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                  label: const Flexible(
+                    child: Text(
+                      'Income',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
