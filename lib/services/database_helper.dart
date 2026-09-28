@@ -21,7 +21,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -35,7 +35,8 @@ class DatabaseHelper {
         amount REAL NOT NULL,
         category TEXT NOT NULL,
         date TEXT NOT NULL,
-        paymentMethod TEXT NOT NULL DEFAULT 'Cash'
+        paymentMethod TEXT NOT NULL DEFAULT 'Cash',
+        fromSavings INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await _createIncomeTable(db);
@@ -63,6 +64,12 @@ class DatabaseHelper {
     // v2 -> v3: added the income table (allowance / money-in tracking).
     if (oldVersion < 3) {
       await _createIncomeTable(db);
+    }
+    // v3 -> v4: expenses can be paid from savings.
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE expenses ADD COLUMN fromSavings INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -113,5 +120,16 @@ class DatabaseHelper {
   Future<int> deleteIncome(int id) async {
     final db = await instance.database;
     return await db.delete('income', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Update Income (matched by id)
+  Future<int> updateIncome(Income income) async {
+    final db = await instance.database;
+    return await db.update(
+      'income',
+      income.toMap(),
+      where: 'id = ?',
+      whereArgs: [income.id],
+    );
   }
 }

@@ -8,6 +8,11 @@ class Expense {
   final DateTime date;
   final String paymentMethod;
 
+  /// True when this was paid out of savings (unspent money from past
+  /// periods). Such expenses don't count against the budget, the daily
+  /// limit, or streaks, but they still reduce your real balance.
+  final bool fromSavings;
+
   Expense({
     this.id,
     required this.title,
@@ -15,6 +20,7 @@ class Expense {
     required this.category,
     required this.date,
     this.paymentMethod = 'Cash',
+    this.fromSavings = false,
   });
 
   /// Major type ('Food' / 'Transportation' / 'Other'), derived from [category].
@@ -29,6 +35,7 @@ class Expense {
       'category': category,
       'date': date.toIso8601String(),
       'paymentMethod': paymentMethod,
+      'fromSavings': fromSavings ? 1 : 0,
     };
   }
 
@@ -41,6 +48,7 @@ class Expense {
       category: map['category'],
       date: DateTime.parse(map['date']),
       paymentMethod: map['paymentMethod'] as String? ?? 'Cash',
+      fromSavings: (map['fromSavings'] as int? ?? 0) == 1,
     );
   }
 }

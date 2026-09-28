@@ -597,7 +597,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
   }) {
     final isSelected = DateUtils.isSameDay(date, _selected);
     final isToday = DateUtils.isSameDay(date, DateTime.now());
-    final ratio = limit > 0 ? amount / limit : 0.0;
+    final ratio = limit > 0 ? amount / limit : (amount > 0 ? 2.0 : 0.0);
     final isFuture = date.isAfter(DateTime.now());
     // Shortfall shading only makes sense for days that haven't happened yet.
     final showShortfall = isFuture && isPastRunway && amount == 0;
@@ -717,7 +717,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
   InlineSpan _buildDayTooltip(DateTime date, ExpenseProvider provider) {
     final items = provider.getExpensesOn(date);
     final incomeItems = provider.getIncomeOn(date);
-    final total = items.fold(0.0, (sum, e) => sum + e.amount);
+    final total = items
+        .where((e) => !e.fromSavings)
+        .fold(0.0, (sum, e) => sum + e.amount);
     final totalIncome = incomeItems.fold(0.0, (sum, i) => sum + i.amount);
 
     const headerStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white);
@@ -735,7 +737,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       const maxLines = 5;
       for (final e in items.take(maxLines)) {
         children.add(TextSpan(
-          text: '\n${CategoryData.emojiFor(e.category)} ${e.title} — ₱${e.amount.toStringAsFixed(0)}',
+          text: '\n${CategoryData.emojiFor(e.category)} ${e.title} — ₱${e.amount.toStringAsFixed(0)}'
+              '${e.fromSavings ? ' (savings)' : ''}',
           style: lineStyle,
         ));
       }
@@ -798,7 +801,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     final items = _typeFilter == null
         ? allItems
         : allItems.where((e) => e.type == _typeFilter!.name).toList();
-    final total = allItems.fold(0.0, (sum, e) => sum + e.amount);
+    final total = allItems
+        .where((e) => !e.fromSavings)
+        .fold(0.0, (sum, e) => sum + e.amount);
     final isOver = total > limit;
     final typeTotals = provider.typeTotalsForDay(_selected);
     final incomeItems = provider.getIncomeOn(_selected);
@@ -1106,7 +1111,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${e.category} • ${DateFormat('h:mm a').format(e.date)} • ${e.paymentMethod}',
+                            '${e.category} • ${DateFormat('h:mm a').format(e.date)} • ${e.paymentMethod}'
+                            '${e.fromSavings ? ' • From savings' : ''}',
                             style: const TextStyle(fontSize: 11, color: _muted),
                           ),
                         ],

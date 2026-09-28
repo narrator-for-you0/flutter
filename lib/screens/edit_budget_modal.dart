@@ -10,7 +10,6 @@ class EditBudgetModal extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const EditBudgetModal(),
     );
@@ -23,7 +22,13 @@ class EditBudgetModal extends StatefulWidget {
 class _EditBudgetModalState extends State<EditBudgetModal> {
   late final TextEditingController _amountController;
   late final TextEditingController _dailyLimitController;
-  late DateTime _selectedMonth;
+
+  // Tentative cycle settings being edited — only written to the provider on
+  // Save, so switching types here to preview doesn't change anything live.
+  late AllowanceCycleType _cycleType;
+  late int _cycleWeekday; // 1 = Monday .. 7 = Sunday (matches DateTime.weekday)
+  late DateTime _anchorPreview; // effective anchor date while editing
+  late DateTime _selectedPeriodStart; // the period currently shown/edited
 
   static const primaryGreen = Color(0xFF00C853);
   static const darkText = Color(0xFF1E293B);
@@ -31,30 +36,24 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
 
   final List<double> _suggestedBudgets = [4000, 6000, 8000];
 
+  static const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   @override
   void initState() {
     super.initState();
-    _selectedMonth = DateTime.now();
-    final currentBudget = Provider.of<ExpenseProvider>(context, listen: false)
-        .getBudgetForMonth(_selectedMonth);
-    _amountController =
-        TextEditingController(text: currentBudget.toStringAsFixed(0));
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
 
-    // Empty = automatic (budget / days in month)
-    final custom =
-        Provider.of<ExpenseProvider>(context, listen: false).customDailyLimit;
-    _dailyLimitController =
-        TextEditingController(text: custom?.toStringAsFixed(0) ?? '');
-  }
+    _cycleType = provider.cycleType;
+    _cycleWeekday = provider.cycleAnchor.weekday;
+    _anchorPreview = provider.cycleAnchor;
+    _selectedPeriodStart = provider.currentCycleStart(DateTime.now());
 
-  void _changeMonth(int delta) {
-    final newMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta, 1);
-    final budgetForMonth = Provider.of<ExpenseProvider>(context, listen: false)
-        .getBudgetForMonth(newMonth);
-    setState(() {
-      _selectedMonth = newMonth;
-      _amountController.text = budgetForMonth.toStringAsFixed(0);
-    });
+    final currentBudget = provider.getBudgetForCycle(DateTime.now());
+    _amountController = TextEditingController(text: currentBudget.toStringAsFixed(0));
+
+    // Empty = automatic (budget / days in the cycle)
+    final custom = provider.customDailyLimit;
+    _dailyLimitController = TextEditingController(text: custom?.toStringAsFixed(0) ?? '');
   }
 
   @override
@@ -64,23 +63,142 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     super.dispose();
   }
 
+  // Most recent date on/before [from] that falls on [weekday]. Used so
+  // picking a weekday gives a concrete anchor date (needed for biweekly to
+  // know which of the two weeks is "week 1").
+  DateTime _mostRecentWeekday(DateTime from, int weekday) {
+    final d = DateTime(from.year, from.month, from.day);
+    final diff = (d.weekday - weekday) % 7;
+    return d.subtract(Duration(days: diff));
+  }
+
+  void _refreshAmountField() {
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    final key = provider.budgetKeyFor(_cycleType, _selectedPeriodStart);
+    _amountController.text = provider.budgetForCycleKey(key).toStringAsFixed(0);
+  }
+
+  void _selectCycleType(AllowanceCycleType type) {
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    setState(() {
+      _cycleType = type;
+      if (type != AllowanceCycleType.monthly) {
+        _anchorPreview = _mostRecentWeekday(DateTime.now(), _cycleWeekday);
+      }
+      _selectedPeriodStart = provider.cycleStartFor(_cycleType, _anchorPreview, DateTime.now());
+      _refreshAmountField();
+    });
+  }
+
+  void _selectWeekday(int weekday) {
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    setState(() {
+      _cycleWeekday = weekday;
+      _anchorPreview = _mostRecentWeekday(DateTime.now(), weekday);
+      _selectedPeriodStart = provider.cycleStartFor(_cycleType, _anchorPreview, DateTime.now());
+      _refreshAmountField();
+    });
+  }
+
+  void _changePeriod(int delta) {
+    DateTime newStart;
+    switch (_cycleType) {
+      case AllowanceCycleType.monthly:
+        newStart = DateTime(_selectedPeriodStart.year, _selectedPeriodStart.month + delta, 1);
+        break;
+      case AllowanceCycleType.weekly:
+        newStart = _selectedPeriodStart.add(Duration(days: 7 * delta));
+        break;
+      case AllowanceCycleType.biweekly:
+        newStart = _selectedPeriodStart.add(Duration(days: 14 * delta));
+        break;
+    }
+    setState(() {
+      _selectedPeriodStart = newStart;
+      _refreshAmountField();
+    });
+  }
+
+  int get _cycleLengthPreview {
+    switch (_cycleType) {
+      case AllowanceCycleType.monthly:
+        return DateUtils.getDaysInMonth(_selectedPeriodStart.year, _selectedPeriodStart.month);
+      case AllowanceCycleType.weekly:
+        return 7;
+      case AllowanceCycleType.biweekly:
+        return 14;
+    }
+  }
+
+  String get _periodLabel {
+    switch (_cycleType) {
+      case AllowanceCycleType.monthly:
+        return DateFormat('MMMM yyyy').format(_selectedPeriodStart);
+      case AllowanceCycleType.weekly:
+        return 'Week of ${DateFormat('MMM d').format(_selectedPeriodStart)}';
+      case AllowanceCycleType.biweekly:
+        return '2 Weeks from ${DateFormat('MMM d').format(_selectedPeriodStart)}';
+    }
+  }
+
+  String get _budgetFieldLabel {
+    switch (_cycleType) {
+      case AllowanceCycleType.monthly:
+        return 'MONTHLY FOOD BUDGET (₱)';
+      case AllowanceCycleType.weekly:
+        return 'WEEKLY FOOD BUDGET (₱)';
+      case AllowanceCycleType.biweekly:
+        return 'BIWEEKLY FOOD BUDGET (₱)';
+    }
+  }
+
   void _save() {
     final value = double.tryParse(_amountController.text.trim());
     if (value != null && value > 0) {
       final provider = Provider.of<ExpenseProvider>(context, listen: false);
-      provider.updateBudget(value, month: _selectedMonth);
+      provider.setAllowanceCycle(
+        _cycleType,
+        anchor: _cycleType == AllowanceCycleType.monthly ? null : _anchorPreview,
+      );
+      provider.updateBudgetForCycle(value, _cycleType, _selectedPeriodStart);
       // Empty / invalid -> null -> automatic daily limit
       provider.setDailyLimit(double.tryParse(_dailyLimitController.text.trim()));
       Navigator.pop(context);
     }
   }
 
+  Widget _cycleTypeChip(AllowanceCycleType type, String label) {
+    final isSelected = _cycleType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _selectCycleType(type),
+        child: Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? primaryGreen : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : darkText,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final currentAmount = double.tryParse(_amountController.text) ?? 0;
-    final autoDaily = currentAmount /
-        DateUtils.getDaysInMonth(_selectedMonth.year, _selectedMonth.month);
+    final autoDaily = _cycleLengthPreview > 0 ? currentAmount / _cycleLengthPreview : 0.0;
+    final showWeekdayPicker = _cycleType != AllowanceCycleType.monthly;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -109,12 +227,12 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                       color: primaryGreen, size: 20),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
-                        'Edit Monthly Budget',
+                        'Edit Budget',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -139,10 +257,72 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             ),
             const SizedBox(height: 20),
 
-            // Amount field
+            // Allowance cycle picker
             const Text(
-              'MONTHLY FOOD BUDGET (₱)',
+              'ALLOWANCE CYCLE',
               style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: labelColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _cycleTypeChip(AllowanceCycleType.monthly, 'Monthly'),
+                _cycleTypeChip(AllowanceCycleType.weekly, 'Weekly'),
+                _cycleTypeChip(AllowanceCycleType.biweekly, 'Biweekly'),
+              ],
+            ),
+
+            if (showWeekdayPicker) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'CYCLE STARTS ON',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: labelColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: List.generate(7, (i) {
+                  final weekday = i + 1;
+                  final isSelected = _cycleWeekday == weekday;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => _selectWeekday(weekday),
+                      child: Container(
+                        margin: EdgeInsets.only(right: weekday == 7 ? 0 : 6),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isSelected ? primaryGreen : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          _weekdayLabels[i],
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : darkText,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+            const SizedBox(height: 16),
+
+            // Amount field
+            Text(
+              _budgetFieldLabel,
+              style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: labelColor,
@@ -228,9 +408,9 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             ),
             const SizedBox(height: 16),
 
-            // Budget month (display only for now — app tracks a single active budget)
+            // Budget period (cycle-aware: a month, a week, or two weeks)
             const Text(
-              'BUDGET MONTH',
+              'BUDGET PERIOD',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -251,7 +431,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.chevron_left, color: labelColor),
-                    onPressed: () => _changeMonth(-1),
+                    onPressed: () => _changePeriod(-1),
                   ),
                   Row(
                     children: [
@@ -259,14 +439,14 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                           size: 16, color: labelColor),
                       const SizedBox(width: 8),
                       Text(
-                        DateFormat('MMMM yyyy').format(_selectedMonth),
+                        _periodLabel,
                         style: const TextStyle(fontSize: 14, color: darkText, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right, color: labelColor),
-                    onPressed: () => _changeMonth(1),
+                    onPressed: () => _changePeriod(1),
                   ),
                 ],
               ),
@@ -310,7 +490,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             ),
             const SizedBox(height: 6),
             const Text(
-              "Leave empty to use your budget ÷ days in the month. You'll get a warning when a day goes over.",
+              "Leave empty to use your budget ÷ days in the cycle. You'll get a warning when a day goes over.",
               style: TextStyle(fontSize: 11, color: labelColor, height: 1.3),
             ),
             const SizedBox(height: 24),

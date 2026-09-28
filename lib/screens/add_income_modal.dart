@@ -6,19 +6,27 @@ import '../providers/expense_provider.dart';
 
 /// Bottom sheet for logging money coming in (allowance, gift, etc).
 class AddIncomeModal extends StatefulWidget {
+  /// Pre-fill the date (e.g. from the calendar's "+ Add for Sep 20").
   final DateTime? initialDate;
 
-  const AddIncomeModal({super.key, this.initialDate});
+  /// When set, the sheet edits this income entry instead of adding a new one.
+  final Income? existing;
+
+  const AddIncomeModal({super.key, this.initialDate, this.existing});
 
   /// Resolves to the date of the income that was saved, or null if the
   /// sheet was dismissed without saving.
-  static Future<DateTime?> show(BuildContext context, {DateTime? initialDate}) {
+  static Future<DateTime?> show(
+    BuildContext context, {
+    DateTime? initialDate,
+    Income? existing,
+  }) {
     return showModalBottomSheet<DateTime>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddIncomeModal(initialDate: initialDate),
+      builder: (_) => AddIncomeModal(initialDate: initialDate, existing: existing),
     );
   }
 
@@ -38,11 +46,20 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
 
   final List<double> _suggestedAmounts = [500, 1000, 2000];
 
+  bool get _isEditing => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
-    final d = widget.initialDate ?? DateTime.now();
-    _date = DateTime(d.year, d.month, d.day);
+    final existing = widget.existing;
+    if (existing != null) {
+      _amountController.text = existing.amount.toStringAsFixed(0);
+      _noteController.text = existing.note;
+      _date = DateTime(existing.date.year, existing.date.month, existing.date.day);
+    } else {
+      final d = widget.initialDate ?? DateTime.now();
+      _date = DateTime(d.year, d.month, d.day);
+    }
   }
 
   @override
@@ -71,7 +88,15 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     final note = _noteController.text.trim();
 
-    await provider.addIncome(Income(amount: amount, note: note, date: _date));
+    if (_isEditing) {
+      final original = widget.existing!;
+      await provider.updateIncome(
+        original,
+        original.copyWith(amount: amount, note: note, date: _date),
+      );
+    } else {
+      await provider.addIncome(Income(amount: amount, note: note, date: _date));
+    }
     if (!mounted) return;
     Navigator.pop(context, _date);
   }
@@ -105,18 +130,20 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                     child: const Icon(Icons.add_card, color: _green, size: 20),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Add Income',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _dark),
+                          _isEditing ? 'Edit Income' : 'Add Income',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _dark),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'Allowance, gift, or anything else coming in',
-                          style: TextStyle(fontSize: 12, color: _muted),
+                          _isEditing
+                              ? 'Update this income entry'
+                              : 'Allowance, gift, or anything else coming in',
+                          style: const TextStyle(fontSize: 12, color: _muted),
                         ),
                       ],
                     ),
@@ -252,9 +279,9 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                 child: ElevatedButton.icon(
                   onPressed: _save,
                   icon: const Icon(Icons.check, color: Colors.white, size: 18),
-                  label: const Text(
-                    'Save Income',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  label: Text(
+                    _isEditing ? 'Save Changes' : 'Save Income',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _green,

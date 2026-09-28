@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
+import '../models/income.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -17,44 +18,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _selectedType = 'All';
   String _selectedCategory = 'All';
 
-  // Filter & sort (opened from the tune button next to the search bar)
-  int _dateFilter = 0; // 0 All time, 1 Today, 2 This week, 3 This month, 4 Custom
-  DateTimeRange? _customRange;
-  String _paymentFilter = 'All';
-  int _sort = 0; // 0 Newest first, 1 Oldest first, 2 Biggest days first
-
-  static const _dateLabels = ['All time', 'Today', 'This week', 'This month', 'Custom range'];
-  static const _sortLabels = ['Newest first', 'Oldest first', 'Biggest days first'];
-  static const _paymentOptions = ['All', 'Cash', 'GCash', 'Card'];
-
-  bool get _hasActiveFilters =>
-      _dateFilter != 0 || _paymentFilter != 'All' || _sort != 0;
-
-  bool _matchesDate(Expense e) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(e.date.year, e.date.month, e.date.day);
-
-    switch (_dateFilter) {
-      case 1:
-        return day == today;
-      case 2:
-        final start = today.subtract(Duration(days: today.weekday - 1));
-        return !day.isBefore(start) &&
-            day.isBefore(start.add(const Duration(days: 7)));
-      case 3:
-        return e.date.year == now.year && e.date.month == now.month;
-      case 4:
-        final r = _customRange;
-        if (r == null) return true;
-        final start = DateTime(r.start.year, r.start.month, r.start.day);
-        final end = DateTime(r.end.year, r.end.month, r.end.day);
-        return !day.isBefore(start) && !day.isAfter(end);
-      default:
-        return true;
-    }
-  }
-
   // Theme Colors
   static const primaryGreen = Color(0xFF00C853);
   static const darkTextColor = Color(0xFF1E293B);
@@ -62,52 +25,55 @@ class _HistoryScreenState extends State<HistoryScreen> {
   static const lightBgColor = Color(0xFFF8FAFC);
   static const cardBorderColor = Color(0xFFF1F5F9);
 
+  // Type-chip label for money coming in (not a real expense type)
+  static const _incomeChip = 'Income';
+
+  DateTime _entryDate(Object entry) =>
+      entry is Expense ? entry.date : (entry as Income).date;
+
+  String _incomeLabel(Income i) => i.note.isEmpty ? 'Income received' : i.note;
 
   @override
   Widget build(BuildContext context) {
     final expenseProvider = Provider.of<ExpenseProvider>(context);
     final allExpenses = expenseProvider.expenses;
+    final allIncome = expenseProvider.income;
+    final query = _searchQuery.toLowerCase();
+
+    // Income has no type/category: it shows under "All" and "Income" only.
+    final showExpenses = _selectedType != _incomeChip;
+    final showIncome = _selectedType == 'All' || _selectedType == _incomeChip;
 
     // Filter logic based on Search Query and Selected Category Filter
-    final filteredExpenses = allExpenses.where((expense) {
-      final matchesSearch = expense.title.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesType = _selectedType == 'All' || expense.type == _selectedType;
-      final matchesCategory = _selectedCategory == 'All' || expense.category == _selectedCategory;
-      final matchesDate = _matchesDate(expense);
-      final matchesPayment =
-          _paymentFilter == 'All' || expense.paymentMethod == _paymentFilter;
-      return matchesSearch && matchesType && matchesCategory && matchesDate && matchesPayment;
-    }).toList();
+    final filteredExpenses = !showExpenses
+        ? <Expense>[]
+        : allExpenses.where((expense) {
+            final matchesSearch = expense.title.toLowerCase().contains(query);
+            final matchesType = _selectedType == 'All' || expense.type == _selectedType;
+            final matchesCategory = _selectedCategory == 'All' || expense.category == _selectedCategory;
+            return matchesSearch && matchesType && matchesCategory;
+          }).toList();
 
-    // Group expenses by Date
-    final Map<String, List<Expense>> groupedExpenses = {};
-    for (var expense in filteredExpenses) {
+    final filteredIncome = !showIncome
+        ? <Income>[]
+        : allIncome.where((i) => _incomeLabel(i).toLowerCase().contains(query)).toList();
+
+    // Group expenses + income by Date, newest first within each day
+    final Map<String, List<Object>> groupedEntries = {};
+    for (final expense in filteredExpenses) {
       final dateKey = DateFormat('yyyy-MM-dd').format(expense.date);
-      groupedExpenses.putIfAbsent(dateKey, () => []).add(expense);
+      groupedEntries.putIfAbsent(dateKey, () => []).add(expense);
+    }
+    for (final income in filteredIncome) {
+      final dateKey = DateFormat('yyyy-MM-dd').format(income.date);
+      groupedEntries.putIfAbsent(dateKey, () => []).add(income);
+    }
+    for (final list in groupedEntries.values) {
+      list.sort((a, b) => _entryDate(b).compareTo(_entryDate(a)));
     }
 
-    // Order of the day cards, and of the items inside each day
-    final sortedDates = groupedExpenses.keys.toList();
-    double dayTotal(String key) =>
-        groupedExpenses[key]!.fold(0.0, (sum, e) => sum + e.amount);
-
-    if (_sort == 1) {
-      sortedDates.sort((a, b) => a.compareTo(b)); // oldest first
-    } else if (_sort == 2) {
-      sortedDates.sort((a, b) => dayTotal(b).compareTo(dayTotal(a))); // biggest days first
-    } else {
-      sortedDates.sort((a, b) => b.compareTo(a)); // newest first
-    }
-
-    for (final items in groupedExpenses.values) {
-      if (_sort == 1) {
-        items.sort((a, b) => a.date.compareTo(b.date));
-      } else if (_sort == 2) {
-        items.sort((a, b) => b.amount.compareTo(a.amount));
-      } else {
-        items.sort((a, b) => b.date.compareTo(a.date));
-      }
-    }
+    final sortedDates = groupedEntries.keys.toList()
+      ..sort((a, b) => b.compareTo(a)); // Newest first
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -123,7 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Text(
-                    'Expense History',
+                    'History',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -132,7 +98,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Track, search, and manage all your past expenses',
+                    'Track and search your expenses and income',
                     style: TextStyle(
                       fontSize: 13,
                       color: labelColor,
@@ -164,7 +130,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: TextField(
                               onChanged: (val) => setState(() => _searchQuery = val),
                               decoration: const InputDecoration(
-                                hintText: 'Search expenses (e.g., Pizza, Jeepney)',
+                                hintText: 'Search (e.g., Pizza, Jeepney, Allowance)',
                                 hintStyle: TextStyle(color: labelColor, fontSize: 13),
                                 border: InputBorder.none,
                               ),
@@ -175,24 +141,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: _showFilterSheet,
-                    child: Container(
-                      height: 48,
-                      width: 48,
-                      decoration: BoxDecoration(
-                        color: _hasActiveFilters ? const Color(0xFFDCFCE7) : lightBgColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _hasActiveFilters ? primaryGreen : Colors.transparent,
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.tune,
-                        color: _hasActiveFilters ? primaryGreen : labelColor,
-                        size: 20,
-                      ),
+                  Container(
+                    height: 48,
+                    width: 48,
+                    decoration: BoxDecoration(
+                      color: lightBgColor,
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    child: const Icon(Icons.tune, color: labelColor, size: 20),
                   ),
                 ],
               ),
@@ -204,11 +160,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
               items: [
                 {'label': 'All', 'icon': ''},
                 ...CategoryData.types.map((t) => {'label': t.name, 'icon': t.emoji}),
+                {'label': _incomeChip, 'icon': '💰'},
               ],
               selected: _selectedType,
-              countFor: (label) => label == 'All'
-                  ? allExpenses.length
-                  : allExpenses.where((e) => e.type == label).length,
+              countFor: (label) {
+                if (label == 'All') return allExpenses.length + allIncome.length;
+                if (label == _incomeChip) return allIncome.length;
+                return allExpenses.where((e) => e.type == label).length;
+              },
               onSelect: (label) => setState(() {
                 _selectedType = label;
                 _selectedCategory = 'All';
@@ -216,7 +175,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
 
             // Subcategory chips (only once a type is picked)
-            if (_selectedType != 'All') ...[
+            if (_selectedType != 'All' && _selectedType != _incomeChip) ...[
               const SizedBox(height: 8),
               _buildChipRow(
                 items: [
@@ -235,7 +194,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 onSelect: (label) => setState(() => _selectedCategory = label),
               ),
             ],
-            if (_hasActiveFilters) _buildActiveFiltersBar(filteredExpenses.length),
             const SizedBox(height: 16),
 
             // Expense Cards Grouped by Date
@@ -243,250 +201,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: sortedDates.isEmpty
                   ? const Center(
                       child: Text(
-                        'No expenses found',
+                        'Nothing found',
                         style: TextStyle(color: labelColor),
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                       itemCount: sortedDates.length,
                       itemBuilder: (context, index) {
                         final dateStr = sortedDates[index];
-                        final items = groupedExpenses[dateStr]!;
-                        final totalDaily = items.fold(0.0, (sum, item) => sum + item.amount);
+                        final entries = groupedEntries[dateStr]!;
+                        final totalSpent = entries
+                            .whereType<Expense>()
+                            .fold(0.0, (sum, item) => sum + item.amount);
+                        final totalReceived = entries
+                            .whereType<Income>()
+                            .fold(0.0, (sum, item) => sum + item.amount);
 
-                        return _buildDateCardGroup(dateStr, items, totalDaily);
+                        return _buildDateCardGroup(dateStr, entries, totalSpent, totalReceived);
                       },
                     ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ---- Filter & sort sheet -------------------------------------------------
-  Future<void> _showFilterSheet() async {
-    int dateFilter = _dateFilter;
-    DateTimeRange? range = _customRange;
-    String payment = _paymentFilter;
-    int sort = _sort;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheet) {
-            Widget chip(String label, bool selected, VoidCallback onTap) {
-              return GestureDetector(
-                onTap: onTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: selected ? primaryGreen : lightBgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? Colors.white : darkTextColor,
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            Widget section(String title) => Padding(
-                  padding: const EdgeInsets.only(top: 18, bottom: 8),
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: labelColor,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                );
-
-            final r = range;
-            final customLabel = (dateFilter == 4 && r != null)
-                ? '${DateFormat('MMM d').format(r.start)} – ${DateFormat('MMM d').format(r.end)}'
-                : 'Custom range';
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Filter & Sort',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: darkTextColor,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => setSheet(() {
-                            dateFilter = 0;
-                            range = null;
-                            payment = 'All';
-                            sort = 0;
-                          }),
-                          child: const Text(
-                            'Reset',
-                            style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    section('DATE'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (var i = 0; i < 4; i++)
-                          chip(_dateLabels[i], dateFilter == i, () => setSheet(() => dateFilter = i)),
-                        chip(customLabel, dateFilter == 4, () async {
-                          final picked = await showDateRangePicker(
-                            context: ctx,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(2030),
-                            initialDateRange: range,
-                          );
-                          if (picked != null) {
-                            setSheet(() {
-                              range = picked;
-                              dateFilter = 4;
-                            });
-                          }
-                        }),
-                      ],
-                    ),
-
-                    section('PAYMENT METHOD'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final m in _paymentOptions)
-                          chip(m, payment == m, () => setSheet(() => payment = m)),
-                      ],
-                    ),
-
-                    section('SORT BY'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (var i = 0; i < _sortLabels.length; i++)
-                          chip(_sortLabels[i], sort == i, () => setSheet(() => sort = i)),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryGreen,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            // "Custom range" with no dates picked = no date filter
-                            _dateFilter = (dateFilter == 4 && range == null) ? 0 : dateFilter;
-                            _customRange = range;
-                            _paymentFilter = payment;
-                            _sort = sort;
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Summary line shown under the chips while a filter/sort is active
-  Widget _buildActiveFiltersBar(int resultCount) {
-    final parts = <String>[];
-    final r = _customRange;
-    if (_dateFilter == 4 && r != null) {
-      parts.add('${DateFormat('MMM d').format(r.start)} – ${DateFormat('MMM d').format(r.end)}');
-    } else if (_dateFilter != 0) {
-      parts.add(_dateLabels[_dateFilter]);
-    }
-    if (_paymentFilter != 'All') parts.add(_paymentFilter);
-    if (_sort != 0) parts.add(_sortLabels[_sort]);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '$resultCount found • ${parts.join(' • ')}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: labelColor),
-            ),
-          ),
-          TextButton(
-            onPressed: () => setState(() {
-              _dateFilter = 0;
-              _customRange = null;
-              _paymentFilter = 'All';
-              _sort = 0;
-            }),
-            child: const Text(
-              'Clear',
-              style: TextStyle(
-                fontSize: 12,
-                color: primaryGreen,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -550,7 +287,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildDateCardGroup(String dateStr, List<Expense> items, double totalDaily) {
+  Widget _buildDateCardGroup(
+    String dateStr,
+    List<Object> items,
+    double totalSpent,
+    double totalReceived,
+  ) {
     final DateTime parsedDate = DateTime.parse(dateStr);
     final isToday = DateUtils.isSameDay(parsedDate, DateTime.now());
     final isYesterday = DateUtils.isSameDay(parsedDate, DateTime.now().subtract(const Duration(days: 1)));
@@ -610,41 +352,130 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Container(
             color: Colors.white,
             child: Column(
-              children: items.map((expense) => _buildExpenseRow(expense)).toList(),
+              children: items.map((entry) {
+                if (entry is Expense) return _buildExpenseRow(entry);
+                return _buildIncomeRow(entry as Income);
+              }).toList(),
             ),
           ),
 
-          // Daily Total Footer
+          // Daily footer: total spent and/or total received that day
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
               color: Color(0xFFF0FDF4), // Soft green tint
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                const Text(
-                  'Daily Total',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: primaryGreen,
-                  ),
-                ),
-                Text(
-                  '₱${totalDaily.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: primaryGreen,
-                  ),
-                ),
+                if (totalSpent > 0 || totalReceived == 0)
+                  _footerRow('Daily Total', '₱${totalSpent.toStringAsFixed(2)}'),
+                if (totalSpent > 0 && totalReceived > 0) const SizedBox(height: 6),
+                if (totalReceived > 0)
+                  _footerRow('Received', '+₱${totalReceived.toStringAsFixed(2)}'),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _footerRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: primaryGreen,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: primaryGreen,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIncomeRow(Income income) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.add_card, size: 20, color: Color(0xFF15803D)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _incomeLabel(income),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: darkTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text(
+                          'Income',
+                          style: TextStyle(fontSize: 12, color: labelColor),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Received',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF15803D),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '+₱${income.amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF15803D),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: cardBorderColor),
+      ],
     );
   }
 
@@ -688,13 +519,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Flexible(
-                          child: Text(
-                            '${expense.category}  •  ${DateFormat('hh:mm a').format(expense.date)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: labelColor),
-                          ),
+                        Text(
+                          '${expense.category}  •  ${DateFormat('hh:mm a').format(expense.date)}',
+                          style: const TextStyle(fontSize: 12, color: labelColor),
                         ),
                         const SizedBox(width: 6),
                         // Payment Badge
@@ -709,6 +536,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             style: const TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
                           ),
                         ),
+                        if (expense.fromSavings) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Savings',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF15803D),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],

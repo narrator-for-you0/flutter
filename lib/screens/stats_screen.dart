@@ -33,8 +33,7 @@ class _StatsScreenState extends State<StatsScreen> {
             final periodLabel = provider.getPeriodLabel(_selectedFilter);
 
             return SingleChildScrollView(
-              // bottom padding keeps the last card clear of the + button
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

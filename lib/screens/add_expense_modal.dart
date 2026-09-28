@@ -13,7 +13,15 @@ class AddExpenseModal extends StatefulWidget {
   /// When set, the sheet edits this expense instead of adding a new one.
   final Expense? existing;
 
-  const AddExpenseModal({super.key, this.initialDate, this.existing});
+  /// Start with "Pay from savings" switched on (used by the Savings view).
+  final bool startFromSavings;
+
+  const AddExpenseModal({
+    super.key,
+    this.initialDate,
+    this.existing,
+    this.startFromSavings = false,
+  });
 
   /// Resolves to the date of the expense that was saved, or null if the
   /// sheet was dismissed without saving.
@@ -21,6 +29,7 @@ class AddExpenseModal extends StatefulWidget {
     BuildContext context, {
     DateTime? initialDate,
     Expense? existing,
+    bool startFromSavings = false,
   }) {
     return showModalBottomSheet<DateTime>(
       context: context,
@@ -29,7 +38,11 @@ class AddExpenseModal extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => AddExpenseModal(initialDate: initialDate, existing: existing),
+      builder: (_) => AddExpenseModal(
+        initialDate: initialDate,
+        existing: existing,
+        startFromSavings: startFromSavings,
+      ),
     );
   }
 
@@ -69,10 +82,14 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
 
   bool get _isEditing => widget.existing != null;
 
+  // "Pay from savings": doesn't count against the budget or daily limit.
+  bool _fromSavings = false;
+
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
+    _fromSavings = e?.fromSavings ?? widget.startFromSavings;
     if (e != null) {
       _foodNameController.text = e.title;
       _amountController.text = e.amount.toStringAsFixed(2);
@@ -207,6 +224,24 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       return;
     }
 
+    // Can't spend more from savings than you have
+    if (_fromSavings) {
+      final existing = widget.existing;
+      var available = Provider.of<ExpenseProvider>(context, listen: false).savingsBalance;
+      if (existing != null && existing.fromSavings) available += existing.amount;
+      if (amount > available) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Not enough savings — ₱${available.toStringAsFixed(2)} available',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
     // Combine Date and Time
     final fullDateTime = DateTime(
       selectedDate.year,
@@ -223,6 +258,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       category: selectedCategory,
       date: fullDateTime,
       paymentMethod: selectedPayment,
+      fromSavings: _fromSavings,
       // Pass notes if defined in your Expense model:
       // notes: _notesController.text.trim(),
     );
@@ -246,6 +282,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
           category: selectedCategory,
           date: fullDateTime,
           paymentMethod: selectedPayment,
+          fromSavings: _fromSavings,
         ),
       );
     } else {
@@ -259,14 +296,14 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
 
     // Close Modal (returning the saved date) & Display Feedback
     Navigator.pop(context, fullDateTime);
-    final overNow = check.isOver && !check.crossed;
+    final overNow = !_fromSavings && check.isOver && !check.crossed;
     final verb = _isEditing ? 'Updated' : 'Added';
     messenger.showSnackBar(
       SnackBar(
         content: Text(
           overNow
               ? '$verb $title (₱${amount.toStringAsFixed(2)}) • ₱${check.overBy.toStringAsFixed(0)} over daily limit'
-              : '$verb $title (₱${amount.toStringAsFixed(2)})',
+              : '$verb $title (₱${amount.toStringAsFixed(2)})${_fromSavings ? ' from savings' : ''}',
         ),
         backgroundColor: overNow ? Colors.redAccent : primaryGreen,
       ),
@@ -554,6 +591,63 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // PAY FROM SAVINGS (only offered when there are savings to use)
+            Builder(
+              builder: (context) {
+                final provider = Provider.of<ExpenseProvider>(context);
+                final existing = widget.existing;
+                var available = provider.savingsBalance;
+                if (existing != null && existing.fromSavings) available += existing.amount;
+                if (available <= 0 && !_fromSavings) return const SizedBox.shrink();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _fromSavings ? const Color(0xFFDCFCE7) : inputBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _fromSavings ? primaryGreen : Colors.transparent,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.savings_outlined, size: 20, color: primaryGreen),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Pay from savings',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            Text(
+                              '₱${available.toStringAsFixed(2)} available • won\'t count against your budget',
+                              style: const TextStyle(fontSize: 11, color: labelColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _fromSavings,
+                        thumbColor: const WidgetStatePropertyAll(Colors.white),
+                        trackColor: WidgetStateProperty.resolveWith(
+                          (states) =>
+                              states.contains(WidgetState.selected) ? primaryGreen : null,
+                        ),
+                        onChanged: (v) => setState(() => _fromSavings = v),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             // TIME & NOTES
             Row(

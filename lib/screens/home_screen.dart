@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
+import '../models/income.dart';
 import '../widgets/daily_limit_widgets.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_proverder.dart';
 import 'manange_quick_modal.dart';
+import 'reminder_settings_modal.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.onViewAll});
@@ -310,7 +312,9 @@ class _HomeScreenState extends State<HomeScreen> {
               item.date.day == now.day;
         }).toList();
 
-        final todayTotal = todayExpenses.fold(0.0, (sum, item) => sum + item.amount);
+        final todayTotal = todayExpenses
+            .where((item) => !item.fromSavings)
+            .fold(0.0, (sum, item) => sum + item.amount);
 
         final yesterday = now.subtract(const Duration(days: 1));
         final yesterdayExpenses = expenses.where((item) {
@@ -319,8 +323,33 @@ class _HomeScreenState extends State<HomeScreen> {
               item.date.day == yesterday.day;
         }).toList();
 
-        final yesterdayTotal = yesterdayExpenses.fold(0.0, (sum, item) => sum + item.amount);
+        final yesterdayTotal = yesterdayExpenses
+            .where((item) => !item.fromSavings)
+            .fold(0.0, (sum, item) => sum + item.amount);
         final diffFromYesterday = todayTotal - yesterdayTotal;
+
+        // Safe-to-spend hero + balance line (Round 7)
+        final safeToday = expenseProvider.dailyLimitFor(now) - todayTotal;
+        final balance = expenseProvider.currentBalance;
+
+        String? cycleCountdownText;
+        if (expenseProvider.cycleType != AllowanceCycleType.monthly) {
+          final today = DateTime(now.year, now.month, now.day);
+          final nextPeriodStart = expenseProvider.currentCycleEnd(now).add(const Duration(days: 1));
+          final daysUntilNext = nextPeriodStart.difference(today).inDays;
+          cycleCountdownText = daysUntilNext <= 1
+              ? 'New allowance period starts tomorrow'
+              : '$daysUntilNext days until your next allowance period';
+        }
+
+        // Today's activity: expenses + income, newest first (Round 7)
+        final todayIncome = expenseProvider.getIncomeOn(now);
+        final todayActivity = <dynamic>[...todayExpenses, ...todayIncome]
+          ..sort((a, b) {
+            final dateA = a is Expense ? a.date : (a as Income).date;
+            final dateB = b is Expense ? b.date : (b as Income).date;
+            return dateB.compareTo(dateA);
+          });
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -375,7 +404,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       ),
-                      const SizedBox(width: 12),
+                      IconButton(
+                        tooltip: 'Daily reminder',
+                        onPressed: () => ReminderSettingsModal.show(context),
+                        icon: Icon(
+                          expenseProvider.reminderEnabled
+                              ? Icons.notifications_active
+                              : Icons.notifications_none_outlined,
+                          color: expenseProvider.reminderEnabled
+                              ? const Color(0xFF00C853)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       GestureDetector(
                         onTap: () => _showEditProfileDialog(context),
                         child: CircleAvatar(
@@ -390,6 +431,75 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
+
+                  // Safe-to-spend today + balance + cycle countdown
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: safeToday < 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: safeToday < 0 ? const Color(0xFFFECACA) : const Color(0xFFDCFCE7),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.bolt,
+                                  size: 15,
+                                  color: safeToday < 0 ? const Color(0xFFDC2626) : const Color(0xFF00C853),
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'SAFE TO SPEND TODAY',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF64748B),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              'Balance: ₱${balance.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          safeToday < 0
+                              ? '₱${safeToday.abs().toStringAsFixed(0)} over'
+                              : '₱${safeToday.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: safeToday < 0 ? const Color(0xFFDC2626) : const Color(0xFF1E293B),
+                          ),
+                        ),
+                        if (cycleCountdownText != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            cycleCountdownText,
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
                   // 2. Today's Spending Hero Card
                   Container(
@@ -638,7 +748,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  if (todayExpenses.isEmpty)
+                  if (todayActivity.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(20),
                       alignment: Alignment.center,
@@ -648,7 +758,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     )
                   else
-                    ...todayExpenses.map((item) => _buildExpenseCard(item)),
+                    ...todayActivity.map((item) {
+                      if (item is Expense) return _buildExpenseCard(item);
+                      return _buildIncomeChip(item as Income);
+                    }),
 
                   const SizedBox(height: 16),
 
@@ -880,6 +993,59 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 }
 
+  Widget _buildIncomeChip(Income income) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDCFCE7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF86EFAC)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.add_card, size: 16, color: Color(0xFF15803D)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  income.note.isEmpty ? 'Income received' : income.note,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Color(0xFF166534),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  DateFormat('h:mm a').format(income.date),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '+₱${income.amount.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Color(0xFF15803D),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildExpenseCard(Expense item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -914,7 +1080,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${DateFormat('h:mm a').format(item.date)} • ${item.paymentMethod}',
+                  '${DateFormat('h:mm a').format(item.date)} • ${item.paymentMethod}'
+                  '${item.fromSavings ? ' • From savings' : ''}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Colors.grey,

@@ -4,19 +4,261 @@ import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
 import 'edit_budget_modal.dart';
 import '../widgets/daily_limit_widgets.dart';
+import '../widgets/savings_view.dart';
 
-class BudgetScreen extends StatelessWidget {
+class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
+
+  @override
+  State<BudgetScreen> createState() => _BudgetScreenState();
+}
+
+class _BudgetScreenState extends State<BudgetScreen> {
+  // Budget | Savings switch at the top of this tab.
+  bool _showSavings = false;
+
+  Widget _modeSwitch(ExpenseProvider provider) {
+    Widget pill(String label, bool selected, VoidCallback onTap) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: selected ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          pill('Budget', !_showSavings, () => setState(() => _showSavings = false)),
+          pill(
+            'Savings • ₱${provider.savingsBalance.toStringAsFixed(0)}',
+            _showSavings,
+            () => setState(() => _showSavings = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _periodHeaderLabel(AllowanceCycleType type, DateTime cycleStart) {
+    switch (type) {
+      case AllowanceCycleType.monthly:
+        return DateFormat('MMMM yyyy').format(cycleStart).toUpperCase();
+      case AllowanceCycleType.weekly:
+        return 'WEEK OF ${DateFormat('MMM d').format(cycleStart).toUpperCase()}';
+      case AllowanceCycleType.biweekly:
+        return '2 WEEKS FROM ${DateFormat('MMM d').format(cycleStart).toUpperCase()}';
+    }
+  }
+
+  String _previousPeriodLabel(AllowanceCycleType type) {
+    switch (type) {
+      case AllowanceCycleType.monthly:
+        return 'last month';
+      case AllowanceCycleType.weekly:
+        return 'last week';
+      case AllowanceCycleType.biweekly:
+        return 'the last 2 weeks';
+    }
+  }
+
+  String _thisPeriodLabel(AllowanceCycleType type) {
+    switch (type) {
+      case AllowanceCycleType.monthly:
+        return 'this month';
+      case AllowanceCycleType.weekly:
+        return 'this week';
+      case AllowanceCycleType.biweekly:
+        return 'these 2 weeks';
+    }
+  }
+
+  Future<void> _confirmFreshStart(
+    BuildContext context,
+    ExpenseProvider provider,
+    double carry,
+    AllowanceCycleType type,
+  ) async {
+    final amount = carry.abs().toStringAsFixed(0);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Start fresh?'),
+        content: Text(
+          'This clears the ₱$amount carried over, so you begin ${_thisPeriodLabel(type)} '
+          'with your full budget. Your expense history stays exactly as it is.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Start fresh',
+              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final previous = provider.startFreshCarryover();
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Carryover cleared'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: const Color(0xFF69F0AE),
+            onPressed: () => provider.restoreCarryoverFreshFrom(previous),
+          ),
+        ),
+      );
+  }
+
+  Widget _carryoverCard(
+    BuildContext context,
+    ExpenseProvider provider,
+    double carry,
+    AllowanceCycleType type,
+  ) {
+    final amount = carry.abs().toStringAsFixed(0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.redo, size: 16, color: Color(0xFFDC2626)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'CARRIED OVER FROM ${_previousPeriodLabel(type).toUpperCase()}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              Text(
+                '−₱$amount',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You ended ${_previousPeriodLabel(type)} ₱$amount over budget, so what you '
+            'can spend ${_thisPeriodLabel(type)} (and your daily limit) is ₱$amount lower.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => _confirmFreshStart(context, provider, carry, type),
+              child: const Text(
+                'Start fresh',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _budgetStatLabel(AllowanceCycleType type) {
+    switch (type) {
+      case AllowanceCycleType.monthly:
+        return 'MONTHLY';
+      case AllowanceCycleType.weekly:
+        return 'WEEKLY';
+      case AllowanceCycleType.biweekly:
+        return 'BIWEEKLY';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ExpenseProvider>(
       builder: (context, provider, child) {
-        final percentage = provider.budgetPercentage;
-        final percentageInt = provider.budgetPercentageInt;
-        final totalSpent = provider.totalSpent;
-        final remaining = provider.remainingBudget;
-        final monthlyBudget = provider.monthlyBudget;
+        final now = DateTime.now();
+        final cycleType = provider.cycleType;
+        final cycleStart = provider.currentCycleStart(now);
+        final cycleEnd = provider.currentCycleEnd(now);
+
+        final budget = provider.getBudgetForCycle(now);
+        final totalSpent = provider.totalSpentForCycle(now);
+        final remaining = (budget - totalSpent) < 0 ? 0.0 : (budget - totalSpent);
+        final percentage = budget == 0 ? 0.0 : (totalSpent / budget).clamp(0.0, 1.0);
+        final percentageInt = (percentage * 100).toInt();
+        final carry = provider.carryoverInto(now);
+
+        if (_showSavings) {
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _modeSwitch(provider),
+                const SizedBox(height: 16),
+                const SavingsView(),
+              ],
+            ),
+          );
+        }
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -24,13 +266,14 @@ class BudgetScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _modeSwitch(provider),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Column(
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
                         'Budget Management',
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -42,8 +285,6 @@ class BudgetScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  ),
-                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () => EditBudgetModal.show(context),
                     icon: const Icon(Icons.edit, size: 14, color: Color(0xFF00C853)),
@@ -73,7 +314,8 @@ class BudgetScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      '${DateFormat('MMMM yyyy').format(DateTime.now()).toUpperCase()} BUDGET STATUS',
+                      '${_periodHeaderLabel(cycleType, cycleStart)} BUDGET STATUS',
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 11,
                         color: Colors.grey,
@@ -141,7 +383,7 @@ class BudgetScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatColumn('MONTHLY', '₱${monthlyBudget.toStringAsFixed(0)}', Colors.black),
+                        _buildStatColumn(_budgetStatLabel(cycleType), '₱${budget.toStringAsFixed(0)}', Colors.black),
                         _buildStatColumn('SPENT', '₱${totalSpent.toStringAsFixed(0)}', const Color(0xFFFF8F00)),
                         _buildStatColumn('REMAINING', '₱${remaining.toStringAsFixed(0)}', const Color(0xFF00C853)),
                       ],
@@ -150,6 +392,37 @@ class BudgetScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Available-to-spend vs. real cash on hand — deliberately two
+              // separate numbers, since income/carryover can make them differ.
+              Row(
+                children: [
+                  Expanded(
+                    child: _metricCard(
+                      label: 'AVAILABLE THIS CYCLE',
+                      value: provider.availableThisCycle(now),
+                      caption: 'Budget + income − spent, incl. carryover',
+                      accent: const Color(0xFF00C853),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _metricCard(
+                      label: 'BALANCE',
+                      value: provider.currentBalance,
+                      caption: 'All income minus all spending, ever',
+                      accent: const Color(0xFF3B82F6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Shortfall from the previous period, if any.
+              if (carry < 0) ...[
+                _carryoverCard(context, provider, carry, cycleType),
+                const SizedBox(height: 16),
+              ],
 
               // Caution Banner (shows dynamically if over 75%)
               if (percentage >= 0.75)
@@ -209,11 +482,10 @@ class BudgetScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Suggested pace for the rest of the month
+              // Suggested pace for the rest of the current cycle
               Builder(builder: (context) {
-                final now = DateTime.now();
-                final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-                final daysRemaining = (daysInMonth - now.day + 1).clamp(1, daysInMonth);
+                final today = DateTime(now.year, now.month, now.day);
+                final daysRemaining = (cycleEnd.difference(today).inDays + 1).clamp(1, 999);
                 final recommendedDaily = remaining / daysRemaining;
 
                 return Container(
@@ -229,13 +501,13 @@ class BudgetScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
+                          const Row(
                             children: [
-                              const Icon(Icons.event_available, size: 16, color: Color(0xFF00C853)),
-                              const SizedBox(width: 8),
+                              Icon(Icons.event_available, size: 16, color: Color(0xFF00C853)),
+                              SizedBox(width: 8),
                               Text(
                                 'SUGGESTED DAILY SPEND',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFF166534),
@@ -266,7 +538,7 @@ class BudgetScreen extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Spending ₱${recommendedDaily.toStringAsFixed(0)} or less per day ensures you won\'t run out of food money before the month ends!',
+                              'Spending ₱${recommendedDaily.toStringAsFixed(0)} or less per day ensures you won\'t run out of food money before this period ends!',
                               style: const TextStyle(fontSize: 11, color: Colors.black54),
                             ),
                           ),
@@ -326,6 +598,46 @@ class BudgetScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _metricCard({
+    required String label,
+    required double value,
+    required String caption,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEFEFEF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '₱${value.toStringAsFixed(0)}',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: accent),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            caption,
+            style: const TextStyle(fontSize: 10, color: Colors.black45, height: 1.3),
+          ),
+        ],
+      ),
     );
   }
 
