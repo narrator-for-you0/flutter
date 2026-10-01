@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../models/expense_category.dart';
 import '../models/recurring_expense.dart';
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 /// Bottom sheet to create or edit a recurring expense.
 class RecurringExpenseModal extends StatefulWidget {
@@ -52,7 +54,12 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
     final e = widget.existing;
     if (e != null) {
       _titleController.text = e.title;
-      _amountController.text = e.amount.toStringAsFixed(e.amount % 1 == 0 ? 0 : 2);
+      // Show cents only when this amount actually has any, so a whole-peso
+      // amount doesn't come back as "100.00" in the field.
+      _amountController.text = formatAmountInput(
+        e.amount,
+        decimals: e.amount % 1 == 0 ? 0 : 2,
+      );
       _type = CategoryData.typeOfCategory(e.category);
       _category = e.category;
       if (_payments.contains(e.paymentMethod)) _payment = e.paymentMethod;
@@ -130,13 +137,16 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
       active: existing?.active ?? true,
     );
 
-    final int? created =
-        _isEditing ? await provider.updateRecurring(entry) : await provider.addRecurring(entry);
+    final int? created = _isEditing
+        ? await provider.updateRecurring(entry)
+        : await provider.addRecurring(entry);
     if (!mounted) return;
 
     if (created == null) {
       _saving = false;
-      _snack('Could not save this recurring expense');
+      _snack(
+        'Could not save: ${provider.lastRecurringError ?? 'unknown error'}',
+      );
       return;
     }
 
@@ -216,17 +226,26 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
             Expanded(
               child: Text(
                 text,
-                style: TextStyle(fontSize: 14, color: _dark, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _dark,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
       ),
     );
   }
 
-  Widget _textBox(TextEditingController c, String hint, {TextInputType? type, String? prefix}) {
+  Widget _textBox(
+    TextEditingController c,
+    String hint, {
+    TextInputType? type,
+    String? prefix,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -285,7 +304,9 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isEditing ? 'Edit recurring expense' : 'New recurring expense',
+                          _isEditing
+                              ? 'Edit recurring expense'
+                              : 'New recurring expense',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -394,7 +415,9 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
               _label('ENDS (OPTIONAL)'),
               _dateRow(
                 icon: Icons.event_busy_outlined,
-                text: _end == null ? 'Never' : DateFormat('EEEE, MMMM d, yyyy').format(_end!),
+                text: _end == null
+                    ? 'Never'
+                    : DateFormat('EEEE, MMMM d, yyyy').format(_end!),
                 onTap: _pickEnd,
                 trailing: _end == null
                     ? null
@@ -427,7 +450,9 @@ class _RecurringExpenseModalState extends State<RecurringExpenseModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _green,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),

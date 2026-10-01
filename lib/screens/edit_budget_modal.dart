@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 class EditBudgetModal extends StatefulWidget {
   const EditBudgetModal({super.key});
@@ -37,7 +39,15 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
 
   final List<double> _suggestedBudgets = [4000, 6000, 8000];
 
-  static const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _weekdayLabels = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
 
   @override
   void initState() {
@@ -50,11 +60,15 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     _selectedPeriodStart = provider.currentCycleStart(DateTime.now());
 
     final currentBudget = provider.getBudgetForCycle(DateTime.now());
-    _amountController = TextEditingController(text: currentBudget.toStringAsFixed(0));
+    _amountController = TextEditingController(
+      text: formatAmountInput(currentBudget, decimals: 0),
+    );
 
     // Empty = automatic (budget / days in the cycle)
     final custom = provider.customDailyLimit;
-    _dailyLimitController = TextEditingController(text: custom?.toStringAsFixed(0) ?? '');
+    _dailyLimitController = TextEditingController(
+      text: custom == null ? '' : formatAmountInput(custom, decimals: 0),
+    );
   }
 
   @override
@@ -76,7 +90,10 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
   void _refreshAmountField() {
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     final key = provider.budgetKeyFor(_cycleType, _selectedPeriodStart);
-    _amountController.text = provider.budgetForCycleKey(key).toStringAsFixed(0);
+    _amountController.text = formatAmountInput(
+      provider.budgetForCycleKey(key),
+      decimals: 0,
+    );
   }
 
   void _selectCycleType(AllowanceCycleType type) {
@@ -86,7 +103,11 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
       if (type != AllowanceCycleType.monthly) {
         _anchorPreview = _mostRecentWeekday(DateTime.now(), _cycleWeekday);
       }
-      _selectedPeriodStart = provider.cycleStartFor(_cycleType, _anchorPreview, DateTime.now());
+      _selectedPeriodStart = provider.cycleStartFor(
+        _cycleType,
+        _anchorPreview,
+        DateTime.now(),
+      );
       _refreshAmountField();
     });
   }
@@ -96,7 +117,11 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     setState(() {
       _cycleWeekday = weekday;
       _anchorPreview = _mostRecentWeekday(DateTime.now(), weekday);
-      _selectedPeriodStart = provider.cycleStartFor(_cycleType, _anchorPreview, DateTime.now());
+      _selectedPeriodStart = provider.cycleStartFor(
+        _cycleType,
+        _anchorPreview,
+        DateTime.now(),
+      );
       _refreshAmountField();
     });
   }
@@ -105,7 +130,11 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     DateTime newStart;
     switch (_cycleType) {
       case AllowanceCycleType.monthly:
-        newStart = DateTime(_selectedPeriodStart.year, _selectedPeriodStart.month + delta, 1);
+        newStart = DateTime(
+          _selectedPeriodStart.year,
+          _selectedPeriodStart.month + delta,
+          1,
+        );
         break;
       case AllowanceCycleType.weekly:
         newStart = _selectedPeriodStart.add(Duration(days: 7 * delta));
@@ -123,7 +152,10 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
   int get _cycleLengthPreview {
     switch (_cycleType) {
       case AllowanceCycleType.monthly:
-        return DateUtils.getDaysInMonth(_selectedPeriodStart.year, _selectedPeriodStart.month);
+        return DateUtils.getDaysInMonth(
+          _selectedPeriodStart.year,
+          _selectedPeriodStart.month,
+        );
       case AllowanceCycleType.weekly:
         return 7;
       case AllowanceCycleType.biweekly:
@@ -159,11 +191,15 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
       final provider = Provider.of<ExpenseProvider>(context, listen: false);
       provider.setAllowanceCycle(
         _cycleType,
-        anchor: _cycleType == AllowanceCycleType.monthly ? null : _anchorPreview,
+        anchor: _cycleType == AllowanceCycleType.monthly
+            ? null
+            : _anchorPreview,
       );
       provider.updateBudgetForCycle(value, _cycleType, _selectedPeriodStart);
       // Empty / invalid -> null -> automatic daily limit
-      provider.setDailyLimit(double.tryParse(_dailyLimitController.text.trim()));
+      provider.setDailyLimit(
+        double.tryParse(_dailyLimitController.text.trim()),
+      );
       Navigator.pop(context);
     }
   }
@@ -199,7 +235,9 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     AppColors.sync(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final currentAmount = double.tryParse(_amountController.text) ?? 0;
-    final autoDaily = _cycleLengthPreview > 0 ? currentAmount / _cycleLengthPreview : 0.0;
+    final autoDaily = _cycleLengthPreview > 0
+        ? currentAmount / _cycleLengthPreview
+        : 0.0;
     final showWeekdayPicker = _cycleType != AllowanceCycleType.monthly;
 
     return Padding(
@@ -212,76 +250,59 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         child: SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.greenSoft,
-                    borderRadius: BorderRadius.circular(10),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.greenSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet,
+                      color: primaryGreen,
+                      size: 20,
+                    ),
                   ),
-                  child: const Icon(Icons.account_balance_wallet,
-                      color: primaryGreen, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Edit Budget',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: darkText,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Edit Budget',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: darkText,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Set your student food allowance',
-                        style: TextStyle(fontSize: 12, color: labelColor),
-                      ),
-                    ],
+                        SizedBox(height: 2),
+                        Text(
+                          'Set your student food allowance',
+                          style: TextStyle(fontSize: 12, color: labelColor),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(Icons.close, color: labelColor, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Allowance cycle picker
-            Text(
-              'ALLOWANCE CYCLE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: labelColor,
-                letterSpacing: 0.5,
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(Icons.close, color: labelColor, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _cycleTypeChip(AllowanceCycleType.monthly, 'Monthly'),
-                _cycleTypeChip(AllowanceCycleType.weekly, 'Weekly'),
-                _cycleTypeChip(AllowanceCycleType.biweekly, 'Biweekly'),
-              ],
-            ),
+              const SizedBox(height: 20),
 
-            if (showWeekdayPicker) ...[
-              const SizedBox(height: 12),
+              // Allowance cycle picker
               Text(
-                'CYCLE STARTS ON',
+                'ALLOWANCE CYCLE',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -291,24 +312,137 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
               ),
               const SizedBox(height: 8),
               Row(
-                children: List.generate(7, (i) {
-                  final weekday = i + 1;
-                  final isSelected = _cycleWeekday == weekday;
+                children: [
+                  _cycleTypeChip(AllowanceCycleType.monthly, 'Monthly'),
+                  _cycleTypeChip(AllowanceCycleType.weekly, 'Weekly'),
+                  _cycleTypeChip(AllowanceCycleType.biweekly, 'Biweekly'),
+                ],
+              ),
+
+              if (showWeekdayPicker) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'CYCLE STARTS ON',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: labelColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: List.generate(7, (i) {
+                    final weekday = i + 1;
+                    final isSelected = _cycleWeekday == weekday;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => _selectWeekday(weekday),
+                        child: Container(
+                          margin: EdgeInsets.only(right: weekday == 7 ? 0 : 6),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSelected ? primaryGreen : AppColors.card,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            _weekdayLabels[i],
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.white : darkText,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+              const SizedBox(height: 16),
+
+              // Amount field
+              Text(
+                _budgetFieldLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: labelColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: primaryGreen, width: 1.5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    const Text(
+                      '₱',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: darkText,
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Suggested budgets
+              Text(
+                'Suggested Student Budgets:',
+                style: TextStyle(fontSize: 12, color: labelColor),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: _suggestedBudgets.map((amount) {
+                  final isSelected = currentAmount == amount;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => _selectWeekday(weekday),
+                      onTap: () {
+                        setState(() {
+                          _amountController.text = formatAmountInput(
+                            amount,
+                            decimals: 0,
+                          );
+                        });
+                      },
                       child: Container(
-                        margin: EdgeInsets.only(right: weekday == 7 ? 0 : 6),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: isSelected ? primaryGreen : AppColors.card,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _weekdayLabels[i],
+                          formatPeso(amount, decimals: 0),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: isSelected ? Colors.white : darkText,
                           ),
@@ -316,212 +450,130 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                       ),
                     ),
                   );
-                }),
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Budget period (cycle-aware: a month, a week, or two weeks)
+              Text(
+                'BUDGET PERIOD',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: labelColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.chevron_left, color: labelColor),
+                      onPressed: () => _changePeriod(-1),
+                    ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: labelColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _periodLabel,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: darkText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.chevron_right, color: labelColor),
+                      onPressed: () => _changePeriod(1),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Daily limit (optional override)
+              Text(
+                'DAILY LIMIT (₱) — OPTIONAL',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: labelColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: TextField(
+                  controller: _dailyLimitController,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: darkText,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    prefixText: '₱ ',
+                    hintText:
+                        'Auto: ${formatPeso(autoDaily, decimals: 0)} per day',
+                    hintStyle: TextStyle(fontSize: 14, color: labelColor),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "Leave empty to use your budget ÷ days in the cycle. You'll get a warning when a day goes over.",
+                style: TextStyle(fontSize: 11, color: labelColor, height: 1.3),
+              ),
+              const SizedBox(height: 24),
+
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Save Budget',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryGreen,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
               ),
             ],
-            const SizedBox(height: 16),
-
-            // Amount field
-            Text(
-              _budgetFieldLabel,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: labelColor,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: primaryGreen, width: 1.5),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  const Text(
-                    '₱',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: primaryGreen,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() {}),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: darkText,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Suggested budgets
-            Text(
-              'Suggested Student Budgets:',
-              style: TextStyle(fontSize: 12, color: labelColor),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: _suggestedBudgets.map((amount) {
-                final isSelected = currentAmount == amount;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _amountController.text = amount.toStringAsFixed(0);
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected ? primaryGreen : AppColors.card,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '₱${amount.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : darkText,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-
-            // Budget period (cycle-aware: a month, a week, or two weeks)
-            Text(
-              'BUDGET PERIOD',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: labelColor,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.chevron_left, color: labelColor),
-                    onPressed: () => _changePeriod(-1),
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today_outlined,
-                          size: 16, color: labelColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        _periodLabel,
-                        style: TextStyle(fontSize: 14, color: darkText, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.chevron_right, color: labelColor),
-                    onPressed: () => _changePeriod(1),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Daily limit (optional override)
-            Text(
-              'DAILY LIMIT (₱) — OPTIONAL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: labelColor,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: TextField(
-                controller: _dailyLimitController,
-                keyboardType: TextInputType.number,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: darkText,
-                ),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  prefixText: '₱ ',
-                  hintText: 'Auto: ₱${autoDaily.toStringAsFixed(0)} per day',
-                  hintStyle: TextStyle(fontSize: 14, color: labelColor),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              "Leave empty to use your budget ÷ days in the cycle. You'll get a warning when a day goes over.",
-              style: TextStyle(fontSize: 11, color: labelColor, height: 1.3),
-            ),
-            const SizedBox(height: 24),
-
-            // Save button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check, color: Colors.white, size: 18),
-                label: const Text(
-                  'Save Budget',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryGreen,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
         ),
       ),
     );

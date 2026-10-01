@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+
 import '../models/expense.dart';
 import '../models/income.dart';
 import '../models/recurring_expense.dart';
@@ -25,6 +26,7 @@ class DatabaseHelper {
       version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
+      onOpen: _ensureSchema,
     );
   }
 
@@ -47,7 +49,7 @@ class DatabaseHelper {
 
   Future<void> _createRecurringTable(Database db) async {
     await db.execute('''
-      CREATE TABLE recurring_expenses (
+      CREATE TABLE IF NOT EXISTS recurring_expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         amount REAL NOT NULL,
@@ -71,6 +73,17 @@ class DatabaseHelper {
         date TEXT NOT NULL
       )
     ''');
+  }
+
+  /// Runs every time the database opens. Makes sure the Phase 4 pieces exist
+  /// even if the version-based upgrade didn't run (e.g. after a partial update).
+  Future<void> _ensureSchema(Database db) async {
+    await _createRecurringTable(db);
+    final cols = await db.rawQuery('PRAGMA table_info(expenses)');
+    final hasTag = cols.any((c) => c['name'] == 'recurringId');
+    if (!hasTag) {
+      await db.execute('ALTER TABLE expenses ADD COLUMN recurringId INTEGER');
+    }
   }
 
   // v1 -> v2: v1 never had the paymentMethod column, even though
@@ -135,7 +148,7 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.insert('income', income.toMap());
   }
-  
+
   Future<List<Income>> getAllIncome() async {
     final db = await instance.database;
     final result = await db.query('income', orderBy: 'date DESC');
@@ -184,6 +197,10 @@ class DatabaseHelper {
 
   Future<int> deleteRecurring(int id) async {
     final db = await instance.database;
-    return await db.delete('recurring_expenses', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+      'recurring_expenses',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

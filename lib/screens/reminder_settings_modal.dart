@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
 
@@ -41,7 +42,10 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
       initialTime: provider.reminderTime,
     );
     if (picked != null) {
-      await provider.setReminder(enabled: provider.reminderEnabled, time: picked);
+      await provider.setReminder(
+        enabled: provider.reminderEnabled,
+        time: picked,
+      );
     }
   }
 
@@ -72,7 +76,11 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
                     color: AppColors.greenSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.notifications_active_outlined, color: _green, size: 20),
+                  child: const Icon(
+                    Icons.notifications_active_outlined,
+                    color: _green,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -81,7 +89,11 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
                     children: [
                       Text(
                         'Daily reminder',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _dark),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _dark,
+                        ),
                       ),
                       SizedBox(height: 2),
                       Text(
@@ -112,7 +124,11 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
                   Expanded(
                     child: Text(
                       'Remind me each evening',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _dark,
+                      ),
                     ),
                   ),
                   Switch(
@@ -131,7 +147,10 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
                 onTap: enabled ? () => _pickTime(provider) : null,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.card,
                     borderRadius: BorderRadius.circular(14),
@@ -166,7 +185,11 @@ class _ReminderSettingsModalState extends State<ReminderSettingsModal> {
                 padding: EdgeInsets.only(bottom: 8),
                 child: Text(
                   'Notifications are blocked for this app. Allow them in your device settings, then turn this on again.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFFDC2626), height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFDC2626),
+                    height: 1.4,
+                  ),
                 ),
               ),
             Text(

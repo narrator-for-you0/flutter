@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../providers/expense_provider.dart';
 import '../screens/add_expense_modal.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 /// Unspent money from finished periods, and what you've spent out of it.
 /// Shown under the "Savings" side of the Budget tab's switch.
@@ -49,16 +51,27 @@ class SavingsView extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => AddExpenseModal.show(context, startFromSavings: true),
-                  icon: const Icon(Icons.savings_outlined, size: 18, color: _green),
+                  onPressed: () =>
+                      AddExpenseModal.show(context, startFromSavings: true),
+                  icon: const Icon(
+                    Icons.savings_outlined,
+                    size: 18,
+                    color: _green,
+                  ),
                   label: const Text(
                     'Spend from savings',
-                    style: TextStyle(color: _green, fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(
+                      color: _green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(color: _green),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),
@@ -122,7 +135,11 @@ class SavingsView extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.savings_outlined, size: 16, color: Colors.white70),
+              const Icon(
+                Icons.savings_outlined,
+                size: 16,
+                color: Colors.white70,
+              ),
               const SizedBox(width: 6),
               Text(
                 'TOTAL SAVINGS',
@@ -137,7 +154,7 @@ class SavingsView extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '₱${balance.toStringAsFixed(2)}',
+            formatPeso(balance, decimals: 2),
             style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
@@ -147,9 +164,9 @@ class SavingsView extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              _heroStat('SAVED', '₱${earned.toStringAsFixed(0)}'),
+              _heroStat('SAVED', formatPeso(earned, decimals: 0)),
               const SizedBox(width: 10),
-              _heroStat('SPENT', '₱${spent.toStringAsFixed(0)}'),
+              _heroStat('SPENT', formatPeso(spent, decimals: 0)),
             ],
           ),
         ],
@@ -218,10 +235,17 @@ class SavingsView extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _dark),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: _dark,
+            ),
           ),
           const SizedBox(height: 4),
-          Text(body, style: TextStyle(fontSize: 12, color: _muted, height: 1.4)),
+          Text(
+            body,
+            style: TextStyle(fontSize: 12, color: _muted, height: 1.4),
+          ),
         ],
       ),
     );
@@ -231,13 +255,13 @@ class SavingsView extends StatelessWidget {
     final String amountText;
     final Color amountColor;
     if (c.leftover > 0) {
-      amountText = '+₱${c.leftover.toStringAsFixed(0)}';
+      amountText = '+${formatPeso(c.leftover, decimals: 0)}';
       amountColor = _greenDark;
     } else if (c.leftover < 0) {
-      amountText = 'Over by ₱${c.leftover.abs().toStringAsFixed(0)}';
+      amountText = 'Over by ${formatPeso(c.leftover.abs(), decimals: 0)}';
       amountColor = _red;
     } else {
-      amountText = '₱0';
+      amountText = formatPeso(0);
       amountColor = _muted;
     }
 
@@ -253,12 +277,20 @@ class SavingsView extends StatelessWidget {
           Expanded(
             child: Text(
               _periodLabel(type, c),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _dark),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _dark,
+              ),
             ),
           ),
           Text(
             amountText,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: amountColor),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: amountColor,
+            ),
           ),
         ],
       ),
@@ -314,7 +346,7 @@ class SavingsView extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '−₱${e.amount.toStringAsFixed(2)}',
+                  '−${formatPeso(e.amount, decimals: 2)}',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,

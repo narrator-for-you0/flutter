@@ -68,5 +68,6 @@ class AppColors {
 extension ExpenseTypeTint on ExpenseType {
   /// Soft background tint for this type: the original pastel in light mode, a
   /// translucent wash of the accent colour in dark mode.
-  Color get softBg => AppColors.isDark ? color.withValues(alpha: 0.16) : softColor;
+  Color get softBg =>
+      AppColors.isDark ? color.withValues(alpha: 0.16) : softColor;
 }

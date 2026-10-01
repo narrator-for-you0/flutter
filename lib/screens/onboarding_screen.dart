@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/user_proverder.dart';
 import '../themes/app_colors.dart';
 
@@ -142,7 +143,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             if (_photoPath != null)
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xFFDC2626),
+                ),
                 title: const Text('Remove photo'),
                 onTap: () {
                   Navigator.pop(sheetCtx);
@@ -175,7 +179,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!photoOk) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Welcome! Your photo could not be saved. You can add it again from your profile.'),
+          content: Text(
+            'Welcome! Your photo could not be saved. You can add it again from your profile.',
+          ),
         ),
       );
     }
@@ -258,7 +264,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             'Food Allowance Tracker',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _dark),
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: _dark,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -267,7 +277,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: TextStyle(fontSize: 14, color: _muted, height: 1.4),
           ),
           const SizedBox(height: 32),
-          _feature(Icons.receipt_long_outlined, 'Log what you spend in seconds'),
+          _feature(
+            Icons.receipt_long_outlined,
+            'Log what you spend in seconds',
+          ),
           _feature(Icons.speed, 'Stay under a daily limit'),
           _feature(Icons.savings_outlined, 'Keep what you don\'t spend'),
           const Spacer(flex: 3),
@@ -279,11 +292,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 backgroundColor: _green,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: const Text(
                 'Get started',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ),
           ),
@@ -310,7 +329,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _dark,
+              ),
             ),
           ),
         ],
@@ -336,7 +359,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 12),
           Text(
             'Set up your profile',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _dark),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: _dark,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -352,8 +379,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: _greenSoft,
-                    backgroundImage:
-                        _photoPath != null ? FileImage(File(_photoPath!)) : null,
+                    backgroundImage: _photoPath != null
+                        ? FileImage(File(_photoPath!))
+                        : null,
                     child: _photoPath == null
                         ? Text(_emoji, style: const TextStyle(fontSize: 40))
                         : null,
@@ -363,8 +391,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     bottom: 0,
                     child: Container(
                       padding: const EdgeInsets.all(7),
-                      decoration: const BoxDecoration(color: _green, shape: BoxShape.circle),
-                      child: const Icon(Icons.camera_alt, size: 15, color: Colors.white),
+                      decoration: const BoxDecoration(
+                        color: _green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 15,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -374,7 +409,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 20),
           Text(
             'PICK AN AVATAR',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted, letterSpacing: 0.5),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: _muted,
+              letterSpacing: 0.5,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -384,7 +424,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               return GestureDetector(
                 onTap: () => setState(() {
                   _emoji = emoji;
-                  _photoPath = null; // choosing an emoji switches back from a photo
+                  _photoPath =
+                      null; // choosing an emoji switches back from a photo
                 }),
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -409,8 +450,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Your name',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -421,8 +467,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             decoration: InputDecoration(
               labelText: 'Course / school (optional)',
               hintText: 'e.g. BSIT Student',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 28),
@@ -435,17 +486,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 disabledBackgroundColor: AppColors.trackDisabled,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: _saving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text(
                       "Let's go",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
             ),
           ),

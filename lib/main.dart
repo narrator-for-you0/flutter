@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,13 +12,21 @@ import 'screens/add_expense_modal.dart';
 import 'screens/budget_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/setting_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/stats_screen.dart';
 import 'widgets/daily_limit_widgets.dart';
 import 'themes/app_colors.dart';
 
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Windows/Linux have no built-in sqflite engine; use the FFI one there so
+  // data is really saved. (Android/iOS keep using regular sqflite.)
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
   runApp(const MyApp());
 }
 
@@ -24,11 +35,11 @@ void main() {
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.trackpad,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+  };
 }
 
 class MyApp extends StatelessWidget {
@@ -95,9 +106,7 @@ class _SplashScreen extends StatelessWidget {
     AppColors.sync(context);
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: Center(
-        child: CircularProgressIndicator(color: Color(0xFF00C853)),
-      ),
+      body: Center(child: CircularProgressIndicator(color: Color(0xFF00C853))),
     );
   }
 }
@@ -111,7 +120,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen>
     with WidgetsBindingObserver {
-  int _selectedIndex = 0; // default to the first screen (HomeScreen) 
+  int _selectedIndex = 0; // default to the first screen (HomeScreen)
 
   late final List<Widget> _screens = [
     HomeScreen(onViewAll: () => setState(() => _selectedIndex = 1)),
@@ -151,10 +160,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
             // Shows only if you open the app already over today's limit
             const DailyLimitBanner(),
             Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: _screens,
-              ),
+              child: IndexedStack(index: _selectedIndex, children: _screens),
             ),
           ],
         ),
@@ -182,14 +188,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
             activeIcon: Icon(Icons.home),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Stats',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet_outlined),
             activeIcon: Icon(Icons.account_balance_wallet),
@@ -199,6 +199,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       ),
     );
   }
-
-  
 }

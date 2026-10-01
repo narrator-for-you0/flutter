@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 const _red = Color(0xFFDC2626);
 Color get _redSoft => AppColors.redSoft;
@@ -69,7 +71,7 @@ class DailyLimitBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₱${spent.toStringAsFixed(0)} spent • ₱${limit.toStringAsFixed(0)} limit • ₱${over.toStringAsFixed(0)} over',
+                  '${formatPeso(spent, decimals: 0)} spent • ${formatPeso(limit, decimals: 0)} limit • ${formatPeso(over, decimals: 0)} over',
                   style: TextStyle(fontSize: 11, color: _muted),
                 ),
               ],
@@ -138,8 +140,8 @@ class DailyLimitCard extends StatelessWidget {
               ),
               Text(
                 isOver
-                    ? '₱${remaining.toStringAsFixed(0)} over'
-                    : '₱${remaining.toStringAsFixed(0)} left today',
+                    ? '${formatPeso(remaining, decimals: 0)} over'
+                    : '${formatPeso(remaining, decimals: 0)} left today',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -160,7 +162,7 @@ class DailyLimitCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '₱${spent.toStringAsFixed(0)} of ₱${limit.toStringAsFixed(0)}',
+            '${formatPeso(spent, decimals: 0)} of ${formatPeso(limit, decimals: 0)}',
             style: TextStyle(fontSize: 11, color: _muted),
           ),
         ],
@@ -214,12 +216,20 @@ class _CategoryLimitDialog extends StatelessWidget {
             CircleAvatar(
               radius: 28,
               backgroundColor: AppColors.orangeSoft,
-              child: const Icon(Icons.pie_chart_outline, color: _orange, size: 30),
+              child: const Icon(
+                Icons.pie_chart_outline,
+                color: _orange,
+                size: 30,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               plural ? 'Category limits reached' : 'Category limit reached',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _dark),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _dark,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -239,11 +249,16 @@ class _CategoryLimitDialog extends StatelessWidget {
                   backgroundColor: _orange,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: const Text(
                   'Got it',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -272,19 +287,27 @@ class _CategoryLimitDialog extends StatelessWidget {
               children: [
                 Text(
                   h.label,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _dark),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: _dark,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₱${h.total.toStringAsFixed(0)} of ₱${h.limit.toStringAsFixed(0)}',
+                  '${formatPeso(h.total, decimals: 0)} of ${formatPeso(h.limit, decimals: 0)}',
                   style: TextStyle(fontSize: 11, color: _muted),
                 ),
               ],
             ),
           ),
           Text(
-            '₱${h.overBy.toStringAsFixed(0)} over',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _orange),
+            '${formatPeso(h.overBy, decimals: 0)} over',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: _orange,
+            ),
           ),
         ],
       ),
@@ -327,16 +350,20 @@ class _DailyLimitDialog extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'That purchase puts your spending for $dayLabel '
-              '₱${check.overBy.toStringAsFixed(0)} over your daily limit.',
+              '${formatPeso(check.overBy, decimals: 0)} over your daily limit.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: _muted, height: 1.4),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                _statBox('SPENT', '₱${check.dayTotal.toStringAsFixed(0)}', _red),
+                _statBox(
+                  'SPENT',
+                  formatPeso(check.dayTotal, decimals: 0),
+                  _red,
+                ),
                 const SizedBox(width: 10),
-                _statBox('LIMIT', '₱${check.limit.toStringAsFixed(0)}', _dark),
+                _statBox('LIMIT', formatPeso(check.limit, decimals: 0), _dark),
               ],
             ),
             if (isToday) ...[

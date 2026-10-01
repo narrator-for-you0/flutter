@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../models/income.dart';
@@ -8,9 +9,16 @@ import '../providers/expense_provider.dart';
 import '../screens/add_expense_modal.dart';
 import '../screens/add_income_modal.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 const _weekdayShortNames = [
-  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
 ];
 
 /// Month calendar showing how much was spent each day.
@@ -112,7 +120,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: Text('Deleted income (₱${income.amount.toStringAsFixed(2)})'),
+          content: Text(
+            'Deleted income (${formatPeso(income.amount, decimals: 2)})',
+          ),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'Undo',
@@ -132,7 +142,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: Text('Deleted ${e.title} (₱${e.amount.toStringAsFixed(2)})'),
+          content: Text(
+            'Deleted ${e.title} (${formatPeso(e.amount, decimals: 2)})',
+          ),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'Undo',
@@ -148,12 +160,18 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
   List<List<DateTime?>> _buildWeeks(int daysInMonth, int leading) {
     final cells = <DateTime?>[
       ...List.filled(leading, null),
-      ...List.generate(daysInMonth, (i) => DateTime(_month.year, _month.month, i + 1)),
+      ...List.generate(
+        daysInMonth,
+        (i) => DateTime(_month.year, _month.month, i + 1),
+      ),
     ];
     while (cells.length % 7 != 0) {
       cells.add(null);
     }
-    return List.generate(cells.length ~/ 7, (w) => cells.sublist(w * 7, w * 7 + 7));
+    return List.generate(
+      cells.length ~/ 7,
+      (w) => cells.sublist(w * 7, w * 7 + 7),
+    );
   }
 
   @override
@@ -161,7 +179,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     AppColors.sync(context);
     return Consumer<ExpenseProvider>(
       builder: (context, provider, _) {
-        final totals = provider.getDailyTotalsForMonth(_month, type: _typeFilter);
+        final totals = provider.getDailyTotalsForMonth(
+          _month,
+          type: _typeFilter,
+        );
         final limit = provider.dailyLimitFor(_month);
         final daysInMonth = DateUtils.getDaysInMonth(_month.year, _month.month);
         // Monday-first grid (matches the app's "This Week" logic)
@@ -174,8 +195,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         MapEntry<int, double>? worstDay;
         MapEntry<int, double>? bestDay;
         for (final e in totals.entries) {
-          if (worstDay == null || e.value > worstDay!.value) worstDay = e;
-          if (bestDay == null || e.value < bestDay!.value) bestDay = e;
+          if (worstDay == null || e.value > worstDay.value) worstDay = e;
+          if (bestDay == null || e.value < bestDay.value) bestDay = e;
         }
 
         final lastMonth = DateTime(_month.year, _month.month - 1);
@@ -216,16 +237,18 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                       child: Column(
                         key: ValueKey(Object.hash(_month, _typeFilter)),
                         children: weeks
-                            .map((week) => _buildWeekRow(
-                                  week,
-                                  totals,
-                                  limit,
-                                  provider,
-                                  worstDay,
-                                  bestDay,
-                                  incomeTotals,
-                                  runwayDate,
-                                ))
+                            .map(
+                              (week) => _buildWeekRow(
+                                week,
+                                totals,
+                                limit,
+                                provider,
+                                worstDay,
+                                bestDay,
+                                incomeTotals,
+                                runwayDate,
+                              ),
+                            )
                             .toList(),
                       ),
                     ),
@@ -255,7 +278,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _navButton(Icons.chevron_left, () => _goToMonth(DateTime(_month.year, _month.month - 1))),
+        _navButton(
+          Icons.chevron_left,
+          () => _goToMonth(DateTime(_month.year, _month.month - 1)),
+        ),
         Expanded(
           child: GestureDetector(
             onTap: _pickMonth,
@@ -292,7 +318,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             ),
           ),
         ),
-        _navButton(Icons.chevron_right, () => _goToMonth(DateTime(_month.year, _month.month + 1))),
+        _navButton(
+          Icons.chevron_right,
+          () => _goToMonth(DateTime(_month.year, _month.month + 1)),
+        ),
       ],
     );
   }
@@ -320,7 +349,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
   ) {
     return Row(
       children: [
-        _summaryTile('MONTH TOTAL', '₱${total.toStringAsFixed(0)}', _dark),
+        _summaryTile('MONTH TOTAL', formatPeso(total, decimals: 0), _dark),
         const SizedBox(width: 8),
         _summaryTile(
           'DAYS OVER LIMIT',
@@ -332,24 +361,35 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           'WORST DAY',
           worstDay == null
               ? '–'
-              : DateFormat('MMM d').format(DateTime(_month.year, _month.month, worstDay.key)),
+              : DateFormat('MMM d')
+                    .format(DateTime(_month.year, _month.month, worstDay.key)),
           _red,
-          subtitle: worstDay == null ? null : '₱${worstDay.value.toStringAsFixed(0)}',
+          subtitle: worstDay == null
+              ? null
+              : formatPeso(worstDay.value, decimals: 0),
         ),
         const SizedBox(width: 8),
         _summaryTile(
           'BEST DAY',
           bestDay == null
               ? '–'
-              : DateFormat('MMM d').format(DateTime(_month.year, _month.month, bestDay.key)),
+              : DateFormat('MMM d')
+                    .format(DateTime(_month.year, _month.month, bestDay.key)),
           AppColors.greenDark,
-          subtitle: bestDay == null ? null : '₱${bestDay.value.toStringAsFixed(0)}',
+          subtitle: bestDay == null
+              ? null
+              : formatPeso(bestDay.value, decimals: 0),
         ),
       ],
     );
   }
 
-  Widget _summaryTile(String label, String value, Color valueColor, {String? subtitle}) {
+  Widget _summaryTile(
+    String label,
+    String value,
+    Color valueColor, {
+    String? subtitle,
+  }) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
@@ -403,18 +443,36 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       final isMore = diff > 0;
       final label = diff == 0
           ? 'Same as ${DateFormat('MMMM').format(DateTime(_month.year, _month.month - 1))} so far'
-          : '₱${diff.abs().toStringAsFixed(0)} ${isMore ? 'more' : 'less'} than '
-              '${DateFormat('MMMM').format(DateTime(_month.year, _month.month - 1))}';
-      chips.add(_insightChip(Icons.trending_up, label, isMore ? _red : AppColors.greenDark));
+          : '${formatPeso(diff.abs(), decimals: 0)} ${isMore ? 'more' : 'less'} than '
+                '${DateFormat('MMMM').format(DateTime(_month.year, _month.month - 1))}';
+      chips.add(
+        _insightChip(
+          Icons.trending_up,
+          label,
+          isMore ? _red : AppColors.greenDark,
+        ),
+      );
     }
 
     if (streak >= 2) {
-      chips.add(_insightChip(Icons.local_fire_department, '$streak day streak under your limit', AppColors.orangeAccent));
+      chips.add(
+        _insightChip(
+          Icons.local_fire_department,
+          '$streak day streak under your limit',
+          AppColors.orangeAccent,
+        ),
+      );
     }
 
     if (busiest != null && busiest.value > 0) {
       final name = _weekdayShortNames[busiest.key - 1];
-      chips.add(_insightChip(Icons.calendar_today, 'You spend the most on ${name}s', _dark));
+      chips.add(
+        _insightChip(
+          Icons.calendar_today,
+          'You spend the most on ${name}s',
+          _dark,
+        ),
+      );
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -434,7 +492,14 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 5),
-          Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -446,7 +511,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         final amount = typeTotals[t.name] ?? 0;
         return Expanded(
           child: Container(
-            margin: EdgeInsets.only(right: t == CategoryData.types.last ? 0 : 8),
+            margin: EdgeInsets.only(
+              right: t == CategoryData.types.last ? 0 : 8,
+            ),
             padding: const EdgeInsets.symmetric(vertical: 8),
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -455,9 +522,23 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             ),
             child: Column(
               children: [
-                Text('${t.emoji} ${t.name}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: t.color)),
+                Text(
+                  '${t.emoji} ${t.name}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: t.color,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('₱${amount.toStringAsFixed(0)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _dark)),
+                Text(
+                  formatPeso(amount, decimals: 0),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _dark,
+                  ),
+                ),
               ],
             ),
           ),
@@ -468,7 +549,13 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
   // ---- type filter chips -----------------------------------------------------
   Widget _buildTypeFilterChips() {
-    Widget chip(String label, String emoji, Color color, Color soft, ExpenseType? type) {
+    Widget chip(
+      String label,
+      String emoji,
+      Color color,
+      Color soft,
+      ExpenseType? type,
+    ) {
       final isSelected = _typeFilter?.name == type?.name;
       return GestureDetector(
         onTap: () => setState(() => _typeFilter = isSelected ? null : type),
@@ -497,7 +584,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       child: Row(
         children: [
           chip('All', '📋', _dark, AppColors.fill, null),
-          ...CategoryData.types.map((t) => chip(t.name, t.emoji, t.color, t.softBg, t)),
+          ...CategoryData.types.map(
+            (t) => chip(t.name, t.emoji, t.color, t.softBg, t),
+          ),
         ],
       ),
     );
@@ -508,24 +597,30 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     return Row(
       children: [
-        ...labels.map((l) => Expanded(
-              child: Center(
-                child: Text(
-                  l,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: _muted,
-                  ),
+        ...labels.map(
+          (l) => Expanded(
+            child: Center(
+              child: Text(
+                l,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _muted,
                 ),
               ),
-            )),
+            ),
+          ),
+        ),
         SizedBox(
           width: 40,
           child: Center(
             child: Text(
               '∑',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: _muted,
+              ),
             ),
           ),
         ),
@@ -566,7 +661,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                     isWorst: worstDay != null && date.day == worstDay.key,
                     isBest: bestDay != null && date.day == bestDay.key,
                     hasIncome: (incomeTotals[date.day] ?? 0) > 0,
-                    isPastRunway: runwayDate != null && date.isAfter(runwayDate),
+                    isPastRunway:
+                        runwayDate != null && date.isAfter(runwayDate),
                   ),
                 ),
               );
@@ -578,7 +674,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               child: Text(
                 weekTotal > 0 ? _compact(weekTotal) : '–',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _muted,
+                ),
               ),
             ),
           ],
@@ -603,10 +703,16 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     final isFuture = date.isAfter(DateTime.now());
     // Shortfall shading only makes sense for days that haven't happened yet.
     final showShortfall = isFuture && isPastRunway && amount == 0;
-    final noSpend = !isFuture && _typeFilter == null && provider.isNoSpendDay(date);
-    final inStreak = !isFuture &&
+    final noSpend =
+        !isFuture && _typeFilter == null && provider.isNoSpendDay(date);
+    final inStreak =
+        !isFuture &&
         _typeFilter == null &&
-        date.isAfter(DateTime.now().subtract(Duration(days: provider.currentUnderLimitStreak)));
+        date.isAfter(
+          DateTime.now().subtract(
+            Duration(days: provider.currentUnderLimitStreak),
+          ),
+        );
 
     Color bg = showShortfall ? AppColors.track : AppColors.card;
     Color amountColor = _muted;
@@ -625,7 +731,9 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
     Color borderColor = isSelected
         ? _primaryGreen
-        : (isToday ? _primaryGreen.withValues(alpha: 0.45) : Colors.transparent);
+        : (isToday
+              ? _primaryGreen.withValues(alpha: 0.45)
+              : Colors.transparent);
     double borderWidth = isSelected ? 2 : 1.5;
     if (!isSelected && isWorst) {
       borderColor = _red;
@@ -643,74 +751,98 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         color: AppColors.tooltipBg,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       richMessage: _buildDayTooltip(date, provider),
       child: GestureDetector(
-      onTap: () => setState(() => _selected = date),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: borderColor, width: borderWidth),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${date.day}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: (isToday || isSelected) ? FontWeight.bold : FontWeight.w500,
-                    color: _dark,
+        onTap: () => setState(() => _selected = date),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor, width: borderWidth),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${date.day}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: (isToday || isSelected)
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: _dark,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  amount > 0 ? _compact(amount) : '',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: amountColor,
+                  const SizedBox(height: 4),
+                  Text(
+                    amount > 0 ? _compact(amount) : '',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: amountColor,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (isBest)
-            const Positioned(top: -4, right: -2, child: Text('⭐', style: TextStyle(fontSize: 11))),
-          if (isWorst)
-            const Positioned(top: -4, right: -2, child: Text('⚠️', style: TextStyle(fontSize: 11))),
-          if (hasIncome)
-            Positioned(
-              top: -3,
-              left: -3,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: const BoxDecoration(color: _primaryGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.add, size: 10, color: Colors.white),
+                ],
               ),
             ),
-          if (noSpend)
-            Positioned(
-              bottom: -3,
-              left: -3,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: const BoxDecoration(color: _primaryGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.check, size: 10, color: Colors.white),
+            if (isBest)
+              const Positioned(
+                top: -4,
+                right: -2,
+                child: Text('⭐', style: TextStyle(fontSize: 11)),
               ),
-            )
-          else if (inStreak && amount > 0)
-            const Positioned(bottom: -4, left: -2, child: Text('🔥', style: TextStyle(fontSize: 11))),
-        ],
-      ),
+            if (isWorst)
+              const Positioned(
+                top: -4,
+                right: -2,
+                child: Text('⚠️', style: TextStyle(fontSize: 11)),
+              ),
+            if (hasIncome)
+              Positioned(
+                top: -3,
+                left: -3,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: const BoxDecoration(
+                    color: _primaryGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add, size: 10, color: Colors.white),
+                ),
+              ),
+            if (noSpend)
+              Positioned(
+                bottom: -3,
+                left: -3,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: const BoxDecoration(
+                    color: _primaryGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 10, color: Colors.white),
+                ),
+              )
+            else if (inStreak && amount > 0)
+              const Positioned(
+                bottom: -4,
+                left: -2,
+                child: Text('🔥', style: TextStyle(fontSize: 11)),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -724,41 +856,74 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         .fold(0.0, (sum, e) => sum + e.amount);
     final totalIncome = incomeItems.fold(0.0, (sum, i) => sum + i.amount);
 
-    const headerStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white);
-    const lineStyle = TextStyle(fontSize: 11.5, color: Colors.white, height: 1.5);
-    final incomeStyle = TextStyle(fontSize: 11.5, color: AppColors.greenBorder, height: 1.5);
-    final mutedStyle = TextStyle(fontSize: 11.5, color: AppColors.faint, height: 1.5);
+    const headerStyle = TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 12,
+      color: Colors.white,
+    );
+    const lineStyle = TextStyle(
+      fontSize: 11.5,
+      color: Colors.white,
+      height: 1.5,
+    );
+    final incomeStyle = TextStyle(
+      fontSize: 11.5,
+      color: AppColors.greenBorder,
+      height: 1.5,
+    );
+    final mutedStyle = TextStyle(
+      fontSize: 11.5,
+      color: AppColors.faint,
+      height: 1.5,
+    );
 
     final children = <InlineSpan>[
-      TextSpan(text: DateFormat('EEEE, MMM d').format(date), style: headerStyle),
+      TextSpan(
+        text: DateFormat('EEEE, MMM d').format(date),
+        style: headerStyle,
+      ),
     ];
 
     if (items.isEmpty && incomeItems.isEmpty) {
-      children.add(TextSpan(text: '\nNo activity logged', style: mutedStyle));
+      children.add(TextSpan(text: "\nNo activity logged", style: mutedStyle));
     } else {
       const maxLines = 5;
       for (final e in items.take(maxLines)) {
-        children.add(TextSpan(
-          text: '\n${CategoryData.emojiFor(e.category)} ${e.title} — ₱${e.amount.toStringAsFixed(0)}'
-              '${e.fromSavings ? ' (savings)' : ''}',
-          style: lineStyle,
-        ));
+        children.add(
+          TextSpan(
+            text:
+                "\n${CategoryData.emojiFor(e.category)} ${e.title} — ${formatPeso(e.amount, decimals: 0)}"
+                "${e.fromSavings ? ' (savings)' : ''}",
+            style: lineStyle,
+          ),
+        );
       }
       if (items.length > maxLines) {
-        children.add(TextSpan(text: '\n+${items.length - maxLines} more', style: mutedStyle));
+        children.add(
+          TextSpan(
+            text: "\n+${items.length - maxLines} more",
+            style: mutedStyle,
+          ),
+        );
       }
       for (final i in incomeItems) {
-        children.add(TextSpan(
-          text: '\n+ ₱${i.amount.toStringAsFixed(0)}'
-              '${i.note.isEmpty ? ' income' : ' • ${i.note}'}',
-          style: incomeStyle,
-        ));
+        children.add(
+          TextSpan(
+            text:
+                "\n+ ${formatPeso(i.amount, decimals: 0)}"
+                "${i.note.isEmpty ? ' income' : ' • ${i.note}'}",
+            style: incomeStyle,
+          ),
+        );
       }
-      children.add(TextSpan(
-        text: '\nTotal: ₱${total.toStringAsFixed(0)}'
-            '${totalIncome > 0 ? '  (+₱${totalIncome.toStringAsFixed(0)} in)' : ''}',
-        style: headerStyle,
-      ));
+      children.add(
+        TextSpan(
+          text:
+              "\nTotal: ${formatPeso(total, decimals: 0)}"
+              "${totalIncome > 0 ? '  (+${formatPeso(totalIncome, decimals: 0)} in)' : ''}",
+          style: headerStyle,
+        ),
+      );
     }
 
     return TextSpan(children: children);
@@ -772,17 +937,20 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
   Widget _buildLegend(double limit, bool showRunway) {
     Widget dot(Color c, String text) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
-            ),
-            const SizedBox(width: 4),
-            Text(text, style: TextStyle(fontSize: 10, color: _muted)),
-          ],
-        );
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: c,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontSize: 10, color: _muted)),
+      ],
+    );
 
     return Wrap(
       alignment: WrapAlignment.center,
@@ -791,7 +959,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       children: [
         dot(AppColors.greenSoft, 'Under 50% of limit'),
         dot(AppColors.amberSoft3, '50–100%'),
-        dot(AppColors.redSoft2, 'Over ₱${limit.toStringAsFixed(0)}'),
+        dot(AppColors.redSoft2, 'Over ${formatPeso(limit, decimals: 0)}'),
         if (showRunway) dot(AppColors.track, 'Projected shortfall'),
       ],
     );
@@ -831,7 +999,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 ),
               ),
               Text(
-                '₱${total.toStringAsFixed(2)}',
+                formatPeso(total, decimals: 2),
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -842,7 +1010,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Balance as of this day: ₱${balance.toStringAsFixed(0)}',
+            'Balance as of this day: ${formatPeso(balance, decimals: 0)}',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -868,8 +1036,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               ),
               child: Text(
                 isOver
-                    ? '₱${(total - limit).toStringAsFixed(0)} over the ₱${limit.toStringAsFixed(0)} limit'
-                    : '₱${(limit - total).toStringAsFixed(0)} under the ₱${limit.toStringAsFixed(0)} limit',
+                    ? '${formatPeso((total - limit), decimals: 0)} over the ${formatPeso(limit, decimals: 0)} limit'
+                    : '${formatPeso((limit - total), decimals: 0)} under the ${formatPeso(limit, decimals: 0)} limit',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -886,14 +1054,20 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
                 'Showing ${_typeFilter!.name} only',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _typeFilter!.color),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _typeFilter!.color,
+                ),
               ),
             ),
           if (items.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                allItems.isEmpty ? 'No expenses on this day.' : 'No ${_typeFilter!.name} expenses on this day.',
+                allItems.isEmpty
+                    ? 'No expenses on this day.'
+                    : 'No ${_typeFilter!.name} expenses on this day.',
                 style: TextStyle(fontSize: 12, color: _muted),
               ),
             )
@@ -913,7 +1087,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _openAdd,
-                  icon: const Icon(Icons.remove, size: 18, color: _primaryGreen),
+                  icon: const Icon(
+                    Icons.remove,
+                    size: 18,
+                    color: _primaryGreen,
+                  ),
                   label: Flexible(
                     child: Text(
                       'Expense • ${DateFormat('MMM d').format(_selected)}',
@@ -970,11 +1148,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
   Widget _buildIncomeRow(Income income) {
     Widget deleteBackground() => Container(
-          color: _red,
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 18),
-          child: const Icon(Icons.delete_outline, color: Colors.white),
-        );
+      color: _red,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 18),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -991,7 +1169,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             child: InkWell(
               onTap: () => _openEditIncome(income),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Icon(Icons.add_circle, size: 16, color: AppColors.blue),
@@ -999,12 +1180,20 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                     Expanded(
                       child: Text(
                         income.note.isEmpty ? 'Income' : income.note,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _dark),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _dark,
+                        ),
                       ),
                     ),
                     Text(
-                      '+₱${income.amount.toStringAsFixed(0)}',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.blue),
+                      '+${formatPeso(income.amount, decimals: 0)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.blue,
+                      ),
                     ),
                   ],
                 ),
@@ -1049,9 +1238,19 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: t.color, shape: BoxShape.circle)),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: t.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                Text('${t.name} ₱${amount.toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: _muted)),
+                Text(
+                  '${t.name} ${formatPeso(amount, decimals: 0)}',
+                  style: TextStyle(fontSize: 10, color: _muted),
+                ),
               ],
             );
           }).toList(),
@@ -1064,11 +1263,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     final type = CategoryData.typeOfCategory(e.category);
 
     Widget deleteBackground() => Container(
-          color: _red,
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 18),
-          child: const Icon(Icons.delete_outline, color: Colors.white),
-        );
+      color: _red,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 18),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1096,7 +1295,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                         color: type.softBg,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(CategoryData.emojiFor(e.category), style: const TextStyle(fontSize: 17)),
+                      child: Text(
+                        CategoryData.emojiFor(e.category),
+                        style: const TextStyle(fontSize: 17),
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1121,7 +1323,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                       ),
                     ),
                     Text(
-                      '₱${e.amount.toStringAsFixed(2)}',
+                      formatPeso(e.amount, decimals: 2),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,

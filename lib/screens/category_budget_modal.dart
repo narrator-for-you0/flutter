@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../models/expense_category.dart';
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 /// Bottom sheet to cap spending per major type (Food, Transportation, Other)
 /// and/or per subcategory (Coffee, Jeepney, ...). Limits apply to each budget
@@ -37,16 +39,20 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
   @override
   void initState() {
     super.initState();
-    final limits = Provider.of<ExpenseProvider>(context, listen: false).categoryBudgets;
+    final limits = Provider.of<ExpenseProvider>(
+      context,
+      listen: false,
+    ).categoryBudgets;
 
     String textFor(String key) {
       final v = limits[key];
-      return v == null ? '' : v.toStringAsFixed(0);
+      return v == null ? '' : formatAmountInput(v, decimals: 0);
     }
 
     for (final t in CategoryData.types) {
-      _controllers[typeBudgetKey(t.name)] =
-          TextEditingController(text: textFor(typeBudgetKey(t.name)));
+      _controllers[typeBudgetKey(t.name)] = TextEditingController(
+        text: textFor(typeBudgetKey(t.name)),
+      );
       for (final s in t.subCategories) {
         final key = subBudgetKey(s.label);
         _controllers[key] = TextEditingController(text: textFor(key));
@@ -70,7 +76,10 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
       final v = double.tryParse(controller.text.trim());
       values[key] = (v != null && v > 0) ? v : null;
     });
-    Provider.of<ExpenseProvider>(context, listen: false).setCategoryBudgets(values);
+    Provider.of<ExpenseProvider>(
+      context,
+      listen: false,
+    ).setCategoryBudgets(values);
     Navigator.pop(context);
   }
 
@@ -82,7 +91,11 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
         keyboardType: const TextInputType.numberWithOptions(decimal: false),
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         textAlign: TextAlign.right,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: _dark,
+        ),
         decoration: InputDecoration(
           isDense: true,
           filled: true,
@@ -91,7 +104,10 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
           prefixStyle: TextStyle(fontSize: 13, color: _muted),
           hintText: 'None',
           hintStyle: TextStyle(fontSize: 13, color: _muted),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 10,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -173,7 +189,10 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
                             style: TextStyle(fontSize: 13, color: _dark),
                           ),
                         ),
-                        _amountField(_controllers[subBudgetKey(s.label)]!, width: 96),
+                        _amountField(
+                          _controllers[subBudgetKey(s.label)]!,
+                          width: 96,
+                        ),
                       ],
                     ),
                   );
@@ -213,7 +232,11 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
                       color: AppColors.greenSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.pie_chart_outline, color: _green, size: 20),
+                    child: const Icon(
+                      Icons.pie_chart_outline,
+                      color: _green,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -269,7 +292,9 @@ class _CategoryBudgetModalState extends State<CategoryBudgetModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _green,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),

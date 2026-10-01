@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../models/income.dart';
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 /// Bottom sheet for logging money coming in (allowance, gift, etc).
 class AddIncomeModal extends StatefulWidget {
@@ -27,7 +29,8 @@ class AddIncomeModal extends StatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddIncomeModal(initialDate: initialDate, existing: existing),
+      builder: (_) =>
+          AddIncomeModal(initialDate: initialDate, existing: existing),
     );
   }
 
@@ -54,9 +57,13 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
     super.initState();
     final existing = widget.existing;
     if (existing != null) {
-      _amountController.text = existing.amount.toStringAsFixed(0);
+      _amountController.text = formatAmountInput(existing.amount, decimals: 0);
       _noteController.text = existing.note;
-      _date = DateTime(existing.date.year, existing.date.month, existing.date.day);
+      _date = DateTime(
+        existing.date.year,
+        existing.date.month,
+        existing.date.day,
+      );
     } else {
       final d = widget.initialDate ?? DateTime.now();
       _date = DateTime(d.year, d.month, d.day);
@@ -138,7 +145,11 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                       children: [
                         Text(
                           _isEditing ? 'Edit Income' : 'Add Income',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _dark),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _dark,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -162,7 +173,12 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
 
               Text(
                 'AMOUNT (₱)',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted, letterSpacing: 0.5),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _muted,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -173,7 +189,14 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: [
-                    const Text('₱', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _green)),
+                    const Text(
+                      '₱',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: _green,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
@@ -181,7 +204,11 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                         keyboardType: TextInputType.number,
                         autofocus: true,
                         onChanged: (_) => setState(() {}),
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _dark),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: _dark,
+                        ),
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
@@ -196,10 +223,16 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
 
               Row(
                 children: _suggestedAmounts.map((amount) {
-                  final isSelected = double.tryParse(_amountController.text) == amount;
+                  final isSelected =
+                      double.tryParse(_amountController.text) == amount;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _amountController.text = amount.toStringAsFixed(0)),
+                      onTap: () => setState(
+                        () => _amountController.text = formatAmountInput(
+                          amount,
+                          decimals: 0,
+                        ),
+                      ),
                       child: Container(
                         margin: const EdgeInsets.only(right: 8),
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -209,7 +242,7 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '₱${amount.toStringAsFixed(0)}',
+                          formatPeso(amount, decimals: 0),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -225,7 +258,12 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
 
               Text(
                 'NOTE (OPTIONAL)',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted, letterSpacing: 0.5),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _muted,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -250,25 +288,41 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
 
               Text(
                 'DATE',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted, letterSpacing: 0.5),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _muted,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: _pickDate,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.card,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.calendar_today_outlined, size: 16, color: _muted),
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 16,
+                        color: _muted,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         DateFormat('EEEE, MMMM d, yyyy').format(_date),
-                        style: TextStyle(fontSize: 14, color: _dark, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _dark,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -283,12 +337,18 @@ class _AddIncomeModalState extends State<AddIncomeModal> {
                   icon: const Icon(Icons.check, color: Colors.white, size: 18),
                   label: Text(
                     _isEditing ? 'Save Changes' : 'Save Income',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _green,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),

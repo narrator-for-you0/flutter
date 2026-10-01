@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../providers/theme_providers.dart';
 import 'reminder_settings_modal.dart';
 import 'category_budget_modal.dart';
 import 'recurring_expenses_screen.dart';
+import 'backup_screen.dart';
 import '../themes/app_colors.dart';
 
-/// App-wide settings: appearance (theme) for now, with room for more
-/// (data export, category budgets, etc.) as later phases land.
+/// App-wide settings: appearance, budget setup, notifications, and data
+/// backup/restore.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -78,11 +80,18 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
                   leading: Icon(Icons.pie_chart_outline, color: _muted),
                   title: Text(
                     'Category limits',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _dark,
+                    ),
                   ),
                   subtitle: Text(
                     expenseProvider.categoryBudgets.isEmpty
@@ -95,11 +104,18 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 Divider(height: 1, color: AppColors.border),
                 ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
                   leading: Icon(Icons.repeat, color: _muted),
                   title: Text(
                     'Recurring expenses',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _dark,
+                    ),
                   ),
                   subtitle: Text(
                     expenseProvider.recurringExpenses.isEmpty
@@ -109,7 +125,9 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   trailing: Icon(Icons.chevron_right, color: _muted),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RecurringExpensesScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const RecurringExpensesScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -123,7 +141,10 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
                   leading: Icon(
                     expenseProvider.reminderEnabled
                         ? Icons.notifications_active
@@ -132,7 +153,11 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   title: Text(
                     'Daily reminder',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _dark,
+                    ),
                   ),
                   subtitle: Text(
                     expenseProvider.reminderEnabled
@@ -145,14 +170,23 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 Divider(height: 1, color: AppColors.border),
                 ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
                   leading: Icon(
                     Icons.flag_outlined,
-                    color: expenseProvider.cycleSummaryEnabled ? _green : _muted,
+                    color: expenseProvider.cycleSummaryEnabled
+                        ? _green
+                        : _muted,
                   ),
                   title: Text(
                     'Period summary',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _dark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _dark,
+                    ),
                   ),
                   subtitle: Text(
                     'When a budget period ends, tell me how it went',
@@ -163,7 +197,9 @@ class SettingsScreen extends StatelessWidget {
                     activeThumbColor: _green,
                     onChanged: (v) async {
                       final messenger = ScaffoldMessenger.of(context);
-                      final ok = await context.read<ExpenseProvider>().setCycleSummaryEnabled(v);
+                      final ok = await context
+                          .read<ExpenseProvider>()
+                          .setCycleSummaryEnabled(v);
                       if (v && !ok) {
                         messenger.showSnackBar(
                           const SnackBar(
@@ -179,6 +215,35 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+
+          _sectionLabel('DATA'),
+          const SizedBox(height: 8),
+          _card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 4,
+              ),
+              leading: Icon(Icons.backup_outlined, color: _muted),
+              title: Text(
+                'Backup & restore',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _dark,
+                ),
+              ),
+              subtitle: Text(
+                'Save a copy of your expenses, income and budgets',
+                style: TextStyle(fontSize: 12, color: _muted),
+              ),
+              trailing: Icon(Icons.chevron_right, color: _muted),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const BackupScreen())),
+            ),
+          ),
         ],
       ),
     );
@@ -187,7 +252,12 @@ class SettingsScreen extends StatelessWidget {
   Widget _sectionLabel(String text) {
     return Text(
       text,
-      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted, letterSpacing: 0.5),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: _muted,
+        letterSpacing: 0.5,
+      ),
     );
   }
 
@@ -229,7 +299,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            if (selected) const Icon(Icons.check_circle, size: 20, color: _green),
+            if (selected)
+              const Icon(Icons.check_circle, size: 20, color: _green),
           ],
         ),
       ),

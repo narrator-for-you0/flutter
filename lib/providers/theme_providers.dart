@@ -59,16 +59,17 @@ class ThemeProvider with ChangeNotifier {
     useMaterial3: true,
     scaffoldBackgroundColor: _bgDark,
     canvasColor: _surfaceDark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _green,
-      brightness: Brightness.dark,
-      primary: _green,
-      secondary: _greenSoft,
-    ).copyWith(
-      surface: _surfaceDark,
-      onSurface: _textDark,
-      surfaceTint: Colors.transparent,
-    ),
+    colorScheme:
+        ColorScheme.fromSeed(
+          seedColor: _green,
+          brightness: Brightness.dark,
+          primary: _green,
+          secondary: _greenSoft,
+        ).copyWith(
+          surface: _surfaceDark,
+          onSurface: _textDark,
+          surfaceTint: Colors.transparent,
+        ),
     primaryColor: _green,
     appBarTheme: const AppBarTheme(
       backgroundColor: _bgDark,
@@ -94,9 +95,7 @@ class ThemeProvider with ChangeNotifier {
       backgroundColor: _surfaceDark,
       surfaceTintColor: Colors.transparent,
     ),
-    timePickerTheme: const TimePickerThemeData(
-      backgroundColor: _surfaceDark,
-    ),
+    timePickerTheme: const TimePickerThemeData(backgroundColor: _surfaceDark),
     snackBarTheme: const SnackBarThemeData(
       backgroundColor: Color(0xFF334155),
       contentTextStyle: TextStyle(color: _textDark),

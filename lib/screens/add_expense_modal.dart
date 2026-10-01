@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../widgets/daily_limit_widgets.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 class AddExpenseModal extends StatefulWidget {
   /// Pre-fill the date (e.g. from the calendar's "+ Add for Sep 20").
@@ -75,9 +77,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     'Milk Tea',
     'Pastil',
     'Iced Coffee',
-    'Egg & Rice'
+    'Egg & Rice',
   ];
-
 
   final List<String> paymentMethods = ['Cash', 'GCash', 'Card'];
 
@@ -93,7 +94,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     _fromSavings = e?.fromSavings ?? widget.startFromSavings;
     if (e != null) {
       _foodNameController.text = e.title;
-      _amountController.text = e.amount.toStringAsFixed(2);
+      _amountController.text = formatAmountInput(e.amount);
       selectedType = CategoryData.typeOfCategory(e.category);
       selectedCategory = e.category;
       if (paymentMethods.contains(e.paymentMethod)) {
@@ -175,7 +176,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected ? t.color : textColor,
                     ),
                   ),
@@ -199,7 +202,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
   void _addQuickAmount(double value) {
     double current = double.tryParse(_amountController.text) ?? 0;
     setState(() {
-      _amountController.text = (current + value).toStringAsFixed(2);
+      _amountController.text = formatAmountInput(current + value);
     });
   }
 
@@ -228,13 +231,18 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     // Can't spend more from savings than you have
     if (_fromSavings) {
       final existing = widget.existing;
-      var available = Provider.of<ExpenseProvider>(context, listen: false).savingsBalance;
-      if (existing != null && existing.fromSavings) available += existing.amount;
+      var available = Provider.of<ExpenseProvider>(
+        context,
+        listen: false,
+      ).savingsBalance;
+      if (existing != null && existing.fromSavings) {
+        available += existing.amount;
+      }
       if (amount > available) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Not enough savings — ₱${available.toStringAsFixed(2)} available',
+              'Not enough savings — ${formatPeso(available, decimals: 2)} available',
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -303,8 +311,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       SnackBar(
         content: Text(
           overNow
-              ? '$verb $title (₱${amount.toStringAsFixed(2)}) • ₱${check.overBy.toStringAsFixed(0)} over daily limit'
-              : '$verb $title (₱${amount.toStringAsFixed(2)})${_fromSavings ? ' from savings' : ''}',
+              ? '$verb $title (${formatPeso(amount, decimals: 2)}) • ${formatPeso(check.overBy, decimals: 0)} over daily limit'
+              : '$verb $title (${formatPeso(amount, decimals: 2)})${_fromSavings ? ' from savings' : ''}',
         ),
         backgroundColor: overNow ? Colors.redAccent : primaryGreen,
       ),
@@ -368,7 +376,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                 hintStyle: TextStyle(color: labelColor, fontSize: 13),
                 filled: true,
                 fillColor: AppColors.surface,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: primaryGreen, width: 1.5),
@@ -393,7 +404,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: chipBgColor,
                       borderRadius: BorderRadius.circular(12),
@@ -416,11 +430,21 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             _buildSectionLabel('AMOUNT (₱)'),
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
               decoration: InputDecoration(
                 prefixText: '₱ ',
-                prefixStyle: TextStyle(fontSize: 18, color: labelColor, fontWeight: FontWeight.bold),
+                prefixStyle: TextStyle(
+                  fontSize: 18,
+                  color: labelColor,
+                  fontWeight: FontWeight.bold,
+                ),
                 hintText: '0.00',
                 hintStyle: TextStyle(color: labelColor, fontSize: 18),
                 filled: true,
@@ -429,7 +453,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -437,7 +464,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             // Quick Add Amounts
             Row(
               children: [
-                Text('Quick add: ', style: TextStyle(color: labelColor, fontSize: 11)),
+                Text(
+                  'Quick add: ',
+                  style: TextStyle(color: labelColor, fontSize: 11),
+                ),
                 const SizedBox(width: 4),
                 _buildQuickAddButton('+₱20', 20),
                 const SizedBox(width: 6),
@@ -449,7 +479,11 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   onTap: _clearAmount,
                   child: Text(
                     'Clear',
-                    style: TextStyle(color: labelColor, fontSize: 11, decoration: TextDecoration.underline),
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 11,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
               ],
@@ -498,7 +532,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                               color: isSelected ? primaryGreen : textColor,
                             ),
                           ),
@@ -524,16 +560,23 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                           final isSelected = selectedPayment == method;
                           return Expanded(
                             child: GestureDetector(
-                              onTap: () => setState(() => selectedPayment = method),
+                              onTap: () =>
+                                  setState(() => selectedPayment = method),
                               child: Container(
                                 margin: const EdgeInsets.only(right: 4),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.surface : inputBgColor,
+                                  color: isSelected
+                                      ? AppColors.surface
+                                      : inputBgColor,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: isSelected ? primaryGreen : Colors.transparent,
+                                    color: isSelected
+                                        ? primaryGreen
+                                        : Colors.transparent,
                                     width: isSelected ? 1.5 : 0,
                                   ),
                                 ),
@@ -541,8 +584,12 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                                   method,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                    color: isSelected ? primaryGreen : textColor,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? primaryGreen
+                                        : textColor,
                                   ),
                                 ),
                               ),
@@ -567,10 +614,15 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             firstDate: DateTime(2020),
                             lastDate: DateTime(2030),
                           );
-                          if (picked != null) setState(() => selectedDate = picked);
+                          if (picked != null) {
+                            setState(() => selectedDate = picked);
+                          }
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: inputBgColor,
                             borderRadius: BorderRadius.circular(12),
@@ -580,9 +632,16 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             children: [
                               Text(
                                 DateFormat('MM/dd/yyyy').format(selectedDate),
-                                style: TextStyle(fontSize: 12, color: textColor),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textColor,
+                                ),
                               ),
-                              Icon(Icons.calendar_today_outlined, size: 14, color: labelColor),
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 14,
+                                color: labelColor,
+                              ),
                             ],
                           ),
                         ),
@@ -600,12 +659,19 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                 final provider = Provider.of<ExpenseProvider>(context);
                 final existing = widget.existing;
                 var available = provider.savingsBalance;
-                if (existing != null && existing.fromSavings) available += existing.amount;
-                if (available <= 0 && !_fromSavings) return const SizedBox.shrink();
+                if (existing != null && existing.fromSavings) {
+                  available += existing.amount;
+                }
+                if (available <= 0 && !_fromSavings) {
+                  return const SizedBox.shrink();
+                }
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: _fromSavings ? AppColors.greenSoft : inputBgColor,
                     borderRadius: BorderRadius.circular(12),
@@ -615,7 +681,11 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.savings_outlined, size: 20, color: primaryGreen),
+                      const Icon(
+                        Icons.savings_outlined,
+                        size: 20,
+                        color: primaryGreen,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -630,7 +700,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                               ),
                             ),
                             Text(
-                              '₱${available.toStringAsFixed(2)} available • won\'t count against your budget',
+                              '${formatPeso(available, decimals: 2)} available • won\'t count against your budget',
                               style: TextStyle(fontSize: 11, color: labelColor),
                             ),
                           ],
@@ -640,8 +710,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                         value: _fromSavings,
                         thumbColor: const WidgetStatePropertyAll(Colors.white),
                         trackColor: WidgetStateProperty.resolveWith(
-                          (states) =>
-                              states.contains(WidgetState.selected) ? primaryGreen : null,
+                          (states) => states.contains(WidgetState.selected)
+                              ? primaryGreen
+                              : null,
                         ),
                         onChanged: (v) => setState(() => _fromSavings = v),
                       ),
@@ -665,10 +736,15 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             context: context,
                             initialTime: selectedTime,
                           );
-                          if (picked != null) setState(() => selectedTime = picked);
+                          if (picked != null) {
+                            setState(() => selectedTime = picked);
+                          }
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: inputBgColor,
                             borderRadius: BorderRadius.circular(12),
@@ -699,7 +775,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
                       ),
                     ],

@@ -33,8 +33,9 @@ class UserProfile {
       name: name ?? this.name,
       studentInfo: studentInfo ?? this.studentInfo,
       avatarEmoji: avatarEmoji ?? this.avatarEmoji,
-      avatarImagePath:
-          clearAvatarImage ? null : (avatarImagePath ?? this.avatarImagePath),
+      avatarImagePath: clearAvatarImage
+          ? null
+          : (avatarImagePath ?? this.avatarImagePath),
     );
   }
 }
@@ -125,7 +126,9 @@ class UserProfileProvider with ChangeNotifier {
   }) async {
     _user = _user.copyWith(
       name: name.trim(),
-      studentInfo: studentInfo.trim().isNotEmpty ? studentInfo.trim() : 'Student',
+      studentInfo: studentInfo.trim().isNotEmpty
+          ? studentInfo.trim()
+          : 'Student',
       avatarEmoji: avatarEmoji,
     );
 
@@ -141,11 +144,7 @@ class UserProfileProvider with ChangeNotifier {
     return photoOk;
   }
 
-  void updateProfile({
-    String? name,
-    String? studentInfo,
-    String? avatarEmoji,
-  }) {
+  void updateProfile({String? name, String? studentInfo, String? avatarEmoji}) {
     _user = _user.copyWith(
       name: name,
       studentInfo: studentInfo,
@@ -153,6 +152,35 @@ class UserProfileProvider with ChangeNotifier {
     );
     notifyListeners();
     _save();
+  }
+
+  /// The parts of the profile a text backup can carry. The photo is left out:
+  /// it's a file in this device's app storage, and the path in the backup
+  /// would mean nothing anywhere else.
+  Map<String, dynamic> exportProfile() {
+    return {
+      'name': _user.name,
+      'studentInfo': _user.studentInfo,
+      'avatarEmoji': _user.avatarEmoji,
+    };
+  }
+
+  /// Restores name / student info / avatar emoji from a backup. Any photo
+  /// already set here is kept — see [exportProfile]. Returns false if the file
+  /// had no usable name, in which case nothing is changed.
+  bool applyImportedProfile(Map<String, dynamic> data) {
+    final name = (data['name'] as String?)?.trim();
+    if (name == null || name.isEmpty) return false;
+
+    final emoji = (data['avatarEmoji'] as String?)?.trim();
+    _user = _user.copyWith(
+      name: name,
+      studentInfo: (data['studentInfo'] as String?)?.trim(),
+      avatarEmoji: (emoji == null || emoji.isEmpty) ? null : emoji,
+    );
+    notifyListeners();
+    _save();
+    return true;
   }
 
   /// Copies the picked image into the app's documents folder (so it survives

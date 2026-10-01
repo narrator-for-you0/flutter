@@ -1,217 +1,173 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import '../models/expense_category.dart';
-import '../models/recurring_expense.dart';
-import '../providers/expense_provider.dart';
-import '../themes/app_colors.dart';
-import 'recurring_expense_modal.dart';
+import 'package:flutter/material.dart' show DateUtils;
 
-/// Lists every recurring expense: pause/resume, tap to edit, swipe to delete.
-class RecurringExpensesScreen extends StatelessWidget {
-  const RecurringExpensesScreen({super.key});
+/// How often a recurring expense repeats.
+enum RecurringFrequency { daily, weekly, biweekly, monthly }
 
-  static const _green = Color(0xFF00C853);
-  static const _red = Color(0xFFDC2626);
-  static Color get _dark => AppColors.text;
-  static Color get _muted => AppColors.muted;
-
-  String _statusText(RecurringExpense r) {
-    if (!r.active) return 'Paused';
-    final next = r.nextOccurrence(DateTime.now());
-    if (next == null) return 'Ended';
-    return 'Next: ${DateFormat('EEE, MMM d').format(next)}';
+extension RecurringFrequencyLabel on RecurringFrequency {
+  String get label {
+    switch (this) {
+      case RecurringFrequency.daily:
+        return 'Daily';
+      case RecurringFrequency.weekly:
+        return 'Weekly';
+      case RecurringFrequency.biweekly:
+        return 'Every 2 weeks';
+      case RecurringFrequency.monthly:
+        return 'Monthly';
+    }
   }
+}
 
-  @override
-  Widget build(BuildContext context) {
-    AppColors.sync(context);
+/// An expense that logs itself on a schedule (e.g. ₱100 of load every week).
+///
+/// Occurrence dates are computed from [startDate] + [frequency], so there is
+/// no drift. [lastGenerated] is the date of the newest occurrence that has
+/// already been logged; everything after it (up to today) is "due".
+class RecurringExpense {
+  final int? id;
+  final String title;
+  final double amount;
+  final String category; // subcategory label, like Expense.category
+  final String paymentMethod;
+  final RecurringFrequency frequency;
+  final DateTime startDate;
+  final DateTime? endDate; // null = repeats forever
+  final DateTime? lastGenerated;
+  final bool active;
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        title: Text(
-          'Recurring expenses',
-          style: TextStyle(color: _dark, fontWeight: FontWeight.bold),
-        ),
-        iconTheme: IconThemeData(color: _dark),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => RecurringExpenseModal.show(context),
-        backgroundColor: _green,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Add recurring',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Consumer<ExpenseProvider>(
-        builder: (context, provider, _) {
-          final items = provider.recurringExpenses;
-          final messenger = ScaffoldMessenger.of(context);
+  const RecurringExpense({
+    this.id,
+    required this.title,
+    required this.amount,
+    required this.category,
+    this.paymentMethod = 'Cash',
+    required this.frequency,
+    required this.startDate,
+    this.endDate,
+    this.lastGenerated,
+    this.active = true,
+  });
 
-          if (items.isEmpty) return _emptyState();
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            children: [
-              Text(
-                'Logged automatically when due. If you skip a few days, the missed '
-                'ones are filled in with their original dates the next time you open the app.',
-                style: TextStyle(fontSize: 11, color: _muted, height: 1.4),
-              ),
-              const SizedBox(height: 14),
-              ...items.map((r) => _dismissibleRow(context, provider, messenger, r)),
-            ],
-          );
-        },
-      ),
+  RecurringExpense copyWith({
+    int? id,
+    String? title,
+    double? amount,
+    String? category,
+    String? paymentMethod,
+    RecurringFrequency? frequency,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool clearEndDate = false,
+    DateTime? lastGenerated,
+    bool? active,
+  }) {
+    return RecurringExpense(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      amount: amount ?? this.amount,
+      category: category ?? this.category,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      frequency: frequency ?? this.frequency,
+      startDate: startDate ?? this.startDate,
+      endDate: clearEndDate ? null : (endDate ?? this.endDate),
+      lastGenerated: lastGenerated ?? this.lastGenerated,
+      active: active ?? this.active,
     );
   }
 
-  Widget _emptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.repeat, size: 44, color: AppColors.faint),
-            const SizedBox(height: 12),
-            Text(
-              'No recurring expenses yet',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _dark),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Add things that repeat, like weekly load, printing, or a daily '
-              'jeepney fare, and they log themselves.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: _muted, height: 1.4),
-            ),
-          ],
-        ),
-      ),
-    );
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// The n-th occurrence (0 = the start date itself).
+  DateTime occurrence(int n) {
+    final s = _dateOnly(startDate);
+    switch (frequency) {
+      case RecurringFrequency.daily:
+        return DateTime(s.year, s.month, s.day + n);
+      case RecurringFrequency.weekly:
+        return DateTime(s.year, s.month, s.day + 7 * n);
+      case RecurringFrequency.biweekly:
+        return DateTime(s.year, s.month, s.day + 14 * n);
+      case RecurringFrequency.monthly:
+        final m = s.month - 1 + n;
+        final year = s.year + m ~/ 12;
+        final month = m % 12 + 1;
+        // A rule that starts on the 31st lands on the last day of shorter months.
+        final dim = DateUtils.getDaysInMonth(year, month);
+        return DateTime(year, month, s.day > dim ? dim : s.day);
+    }
   }
 
-  Widget _dismissibleRow(
-    BuildContext context,
-    ExpenseProvider provider,
-    ScaffoldMessengerState messenger,
-    RecurringExpense r,
-  ) {
-    return Dismissible(
-      key: ValueKey('recurring_${r.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.only(right: 20),
-        alignment: Alignment.centerRight,
-        decoration: BoxDecoration(
-          color: AppColors.redSoft2,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Icon(Icons.delete_outline, color: _red),
-      ),
-      onDismissed: (_) {
-        provider.deleteRecurring(r);
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Deleted ${r.title}. Past expenses stay in your history.'),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () => provider.restoreRecurring(r),
-            ),
-          ),
-        );
-      },
-      child: _row(context, provider, r),
-    );
+  /// Occurrences that are on or before [now], after [lastGenerated], and
+  /// within the end date: i.e. what still needs to be logged. Capped to the
+  /// most recent 120 so a very old rule can't flood the list.
+  List<DateTime> dueOccurrences(DateTime now) {
+    final today = _dateOnly(now);
+    final last = lastGenerated == null ? null : _dateOnly(lastGenerated!);
+    final end = endDate == null ? null : _dateOnly(endDate!);
+
+    final out = <DateTime>[];
+    for (var n = 0; n < 5000; n++) {
+      final d = occurrence(n);
+      if (d.isAfter(today)) break;
+      if (end != null && d.isAfter(end)) break;
+      if (last != null && !d.isAfter(last)) continue;
+      out.add(d);
+    }
+    if (out.length > 120) return out.sublist(out.length - 120);
+    return out;
   }
 
-  Widget _row(BuildContext context, ExpenseProvider provider, RecurringExpense r) {
-    final type = CategoryData.typeOfCategory(r.category);
+  /// The next date this will log on (today counts if it hasn't been logged
+  /// yet), or null if the rule has ended.
+  DateTime? nextOccurrence(DateTime now) {
+    final today = _dateOnly(now);
+    final last = lastGenerated == null ? null : _dateOnly(lastGenerated!);
+    final end = endDate == null ? null : _dateOnly(endDate!);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+    for (var n = 0; n < 5000; n++) {
+      final d = occurrence(n);
+      if (end != null && d.isAfter(end)) return null;
+      if (d.isBefore(today)) continue;
+      if (last != null && !d.isAfter(last)) continue;
+      return d;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'amount': amount,
+      'category': category,
+      'paymentMethod': paymentMethod,
+      'frequency': frequency.name,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+      'lastGenerated': lastGenerated?.toIso8601String(),
+      'active': active ? 1 : 0,
+    };
+  }
+
+  factory RecurringExpense.fromMap(Map<String, dynamic> map) {
+    return RecurringExpense(
+      id: map['id'] as int?,
+      title: map['title'] as String,
+      amount: (map['amount'] as num).toDouble(),
+      category: map['category'] as String,
+      paymentMethod: map['paymentMethod'] as String? ?? 'Cash',
+      frequency: RecurringFrequency.values.firstWhere(
+        (f) => f.name == map['frequency'],
+        orElse: () => RecurringFrequency.weekly,
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => RecurringExpenseModal.show(context, existing: r),
-          child: Opacity(
-            opacity: r.active ? 1 : 0.55,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: type.softBg,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      CategoryData.emojiFor(r.category),
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          r.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: _dark,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '₱${r.amount.toStringAsFixed(r.amount % 1 == 0 ? 0 : 2)} • ${r.frequency.label} • ${r.category}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: _muted),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _statusText(r),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: r.active ? _green : _muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: r.active,
-                    activeThumbColor: _green,
-                    onChanged: (v) => provider.setRecurringActive(r, v),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      startDate: DateTime.parse(map['startDate'] as String),
+      endDate: map['endDate'] != null
+          ? DateTime.parse(map['endDate'] as String)
+          : null,
+      lastGenerated: map['lastGenerated'] != null
+          ? DateTime.parse(map['lastGenerated'] as String)
+          : null,
+      active: (map['active'] as int? ?? 1) == 1,
     );
   }
 }

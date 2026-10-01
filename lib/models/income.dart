@@ -4,12 +4,7 @@ class Income {
   final String note; // e.g. 'Allowance from Mom', optional
   final DateTime date;
 
-  Income({
-    this.id,
-    required this.amount,
-    this.note = '',
-    required this.date,
-  });
+  Income({this.id, required this.amount, this.note = '', required this.date});
 
   Income copyWith({int? id, double? amount, String? note, DateTime? date}) {
     return Income(

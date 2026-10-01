@@ -5,15 +5,19 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+
 import '../models/expense.dart';
+import '../data/tips.dart';
 import '../models/expense_category.dart';
 import '../models/income.dart';
 import '../widgets/daily_limit_widgets.dart';
+import '../widgets/tip_card.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_proverder.dart';
 import 'manange_quick_modal.dart';
 import 'setting_screen.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.onViewAll});
@@ -37,7 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _getEmojiForExpense(Expense item) => CategoryData.emojiFor(item.category);
+  String _getEmojiForExpense(Expense item) =>
+      CategoryData.emojiFor(item.category);
 
   // Ask which payment method was used, then log the Quick Add expense with it
   void _showPaymentPicker(
@@ -70,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '$title • ₱${amount.toStringAsFixed(0)}',
+                '$title • ${formatPeso(amount, decimals: 0)}',
                 style: TextStyle(fontSize: 12, color: AppColors.faint),
               ),
               const SizedBox(height: 16),
@@ -87,8 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           paymentMethod: method,
                         );
 
-                        final provider =
-                            Provider.of<ExpenseProvider>(context, listen: false);
+                        final provider = Provider.of<ExpenseProvider>(
+                          context,
+                          listen: false,
+                        );
                         final messenger = ScaffoldMessenger.of(context);
 
                         // Close the picker, then log the expense
@@ -99,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         messenger.showSnackBar(
                           SnackBar(
                             content: Text(
-                              '$title added (+₱${amount.toStringAsFixed(0)} • $method)',
+                              '$title added (+${formatPeso(amount, decimals: 0)} • $method)',
                             ),
                             duration: const Duration(seconds: 1),
                           ),
@@ -139,7 +146,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Edit Profile Dialog
   void _showEditProfileDialog(BuildContext context) {
-    final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
+    final profileProvider = Provider.of<UserProfileProvider>(
+      context,
+      listen: false,
+    );
     final user = profileProvider.user;
 
     final nameController = TextEditingController(text: user.name);
@@ -220,7 +230,10 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    void showPhotoOptions(BuildContext sheetContext, StateSetter setModalState) {
+    void showPhotoOptions(
+      BuildContext sheetContext,
+      StateSetter setModalState,
+    ) {
       showModalBottomSheet(
         context: sheetContext,
         shape: const RoundedRectangleBorder(
@@ -231,7 +244,10 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF00C853)),
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: Color(0xFF00C853),
+                ),
                 title: const Text('Choose photo'),
                 onTap: () {
                   Navigator.pop(optionsCtx);
@@ -249,7 +265,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               if (photoPath != null)
                 ListTile(
-                  leading: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+                  leading: const Icon(
+                    Icons.delete_outline,
+                    color: Color(0xFFDC2626),
+                  ),
                   title: const Text('Remove photo'),
                   onTap: () {
                     Navigator.pop(optionsCtx);
@@ -265,7 +284,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final List<String> avatarOptions = ['👨‍💻', '👩‍💻', '🎓', '📚', '⚡', '💻', '🎒'];
+    final List<String> avatarOptions = [
+      '👨‍💻',
+      '👩‍💻',
+      '🎓',
+      '📚',
+      '⚡',
+      '💻',
+      '🎒',
+    ];
 
     showModalBottomSheet(
       context: context,
@@ -286,163 +313,198 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: SingleChildScrollView(
                 child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Edit Profile',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.text,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 20),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: GestureDetector(
-                      onTap: () => showPhotoOptions(ctx, setModalState),
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundColor: AppColors.greenSoft,
-                            backgroundImage:
-                                photoPath != null ? FileImage(File(photoPath!)) : null,
-                            child: photoPath == null
-                                ? Text(selectedEmoji, style: const TextStyle(fontSize: 34))
-                                : null,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Edit Profile',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.text,
                           ),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF00C853),
-                                shape: BoxShape.circle,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => showPhotoOptions(ctx, setModalState),
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 40,
+                              backgroundColor: AppColors.greenSoft,
+                              backgroundImage: photoPath != null
+                                  ? FileImage(File(photoPath!))
+                                  : null,
+                              child: photoPath == null
+                                  ? Text(
+                                      selectedEmoji,
+                                      style: const TextStyle(fontSize: 34),
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00C853),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
-                              child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Select Avatar',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.muted),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: avatarOptions.map((emoji) {
-                      final isSelected = photoPath == null && emoji == selectedEmoji;
-                      return GestureDetector(
-                        onTap: () {
-                          setModalState(() {
-                            selectedEmoji = emoji;
-                            // choosing an emoji switches back from a photo
-                            if (photoPath != null) {
-                              photoPath = null;
-                              photoChanged = true;
-                            }
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.greenSoft : AppColors.card,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF00C853) : Colors.transparent,
-                              width: 2,
+                    const SizedBox(height: 16),
+                    Text(
+                      'Select Avatar',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: avatarOptions.map((emoji) {
+                        final isSelected =
+                            photoPath == null && emoji == selectedEmoji;
+                        return GestureDetector(
+                          onTap: () {
+                            setModalState(() {
+                              selectedEmoji = emoji;
+                              // choosing an emoji switches back from a photo
+                              if (photoPath != null) {
+                                photoPath = null;
+                                photoChanged = true;
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.greenSoft
+                                  : AppColors.card,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF00C853)
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 20),
                             ),
                           ),
-                          child: Text(
-                            emoji,
-                            style: const TextStyle(fontSize: 20),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      labelText: 'Display Name',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        );
+                      }).toList(),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: infoController,
-                    decoration: InputDecoration(
-                      labelText: 'Course / Info',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Display Name',
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                      onPressed: () async {
-                        final newName = nameController.text.trim();
-                        final newInfo = infoController.text.trim();
-                        final navigator = Navigator.of(ctx);
-                        final messenger = ScaffoldMessenger.of(context);
-
-                        profileProvider.updateProfile(
-                          name: newName.isNotEmpty ? newName : user.name,
-                          studentInfo: newInfo.isNotEmpty ? newInfo : user.studentInfo,
-                          avatarEmoji: selectedEmoji,
-                        );
-
-                        var photoFailed = false;
-                        if (photoChanged) {
-                          if (photoPath == null) {
-                            await profileProvider.removeAvatarPhoto();
-                          } else {
-                            photoFailed = !await profileProvider.setAvatarPhoto(photoPath!);
-                          }
-                        }
-
-                        navigator.pop();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(photoFailed
-                                ? 'Profile saved, but the photo could not be saved.'
-                                : 'Profile updated successfully!'),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Save Profile',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: infoController,
+                      decoration: InputDecoration(
+                        labelText: 'Course / Info',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C853),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final newName = nameController.text.trim();
+                          final newInfo = infoController.text.trim();
+                          final navigator = Navigator.of(ctx);
+                          final messenger = ScaffoldMessenger.of(context);
+
+                          profileProvider.updateProfile(
+                            name: newName.isNotEmpty ? newName : user.name,
+                            studentInfo: newInfo.isNotEmpty
+                                ? newInfo
+                                : user.studentInfo,
+                            avatarEmoji: selectedEmoji,
+                          );
+
+                          var photoFailed = false;
+                          if (photoChanged) {
+                            if (photoPath == null) {
+                              await profileProvider.removeAvatarPhoto();
+                            } else {
+                              photoFailed = !await profileProvider
+                                  .setAvatarPhoto(photoPath!);
+                            }
+                          }
+
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                photoFailed
+                                    ? 'Profile saved, but the photo could not be saved.'
+                                    : 'Profile updated successfully!',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'Save Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -462,8 +524,15 @@ class _HomeScreenState extends State<HomeScreen> {
         final totalSpent = expenseProvider.totalSpent;
         final monthlyBudget = expenseProvider.monthlyBudget;
         final remaining = monthlyBudget - totalSpent;
-        final budgetPercentage = monthlyBudget > 0 ? (totalSpent / monthlyBudget) : 0.0;
+        final budgetPercentage = monthlyBudget > 0
+            ? (totalSpent / monthlyBudget)
+            : 0.0;
         final percentageInt = (budgetPercentage * 100).toInt();
+        final budgetCardTitle = switch (expenseProvider.cycleType) {
+          AllowanceCycleType.monthly => 'Monthly Budget',
+          AllowanceCycleType.weekly => 'Weekly Budget',
+          AllowanceCycleType.biweekly => 'Biweekly Budget',
+        };
 
         final now = DateTime.now();
         final todayExpenses = expenses.where((item) {
@@ -495,7 +564,9 @@ class _HomeScreenState extends State<HomeScreen> {
         String? cycleCountdownText;
         if (expenseProvider.cycleType != AllowanceCycleType.monthly) {
           final today = DateTime(now.year, now.month, now.day);
-          final nextPeriodStart = expenseProvider.currentCycleEnd(now).add(const Duration(days: 1));
+          final nextPeriodStart = expenseProvider
+              .currentCycleEnd(now)
+              .add(const Duration(days: 1));
           final daysUntilNext = nextPeriodStart.difference(today).inDays;
           cycleCountdownText = daysUntilNext <= 1
               ? 'New allowance period starts tomorrow'
@@ -515,7 +586,10 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: AppColors.bg,
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 16.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -525,51 +599,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Expanded(
                         child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            DateFormat('MMMM d, yyyy').format(now),
-                            style: TextStyle(
-                              color: AppColors.greyText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DateFormat('MMMM d, yyyy').format(now),
+                              style: TextStyle(
+                                color: AppColors.greyText,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  '${_getGreeting(now)}, ${user.name}!',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.text,
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '${_getGreeting(now)}, ${user.name}!',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.text,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Text('👋', style: TextStyle(fontSize: 18)),
-                            ],
-                          ),
-                          Text(
-                            user.studentInfo,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.muted,
+                                const SizedBox(width: 4),
+                                const Text(
+                                  '👋',
+                                  style: TextStyle(fontSize: 18),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
+                            Text(
+                              user.studentInfo,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       IconButton(
                         tooltip: 'Settings',
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
                         ),
-                        icon: Icon(Icons.settings_outlined, color: AppColors.muted),
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          color: AppColors.muted,
+                        ),
                       ),
                       const SizedBox(width: 4),
                       GestureDetector(
@@ -595,12 +677,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Safe-to-spend today + balance + cycle countdown
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
-                      color: safeToday < 0 ? AppColors.redSoft : AppColors.greenFaint,
+                      color: safeToday < 0
+                          ? AppColors.redSoft
+                          : AppColors.greenFaint,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: safeToday < 0 ? AppColors.redBorder : AppColors.greenSoft,
+                        color: safeToday < 0
+                            ? AppColors.redBorder
+                            : AppColors.greenSoft,
                       ),
                     ),
                     child: Column(
@@ -614,7 +703,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Icon(
                                   Icons.bolt,
                                   size: 15,
-                                  color: safeToday < 0 ? const Color(0xFFDC2626) : const Color(0xFF00C853),
+                                  color: safeToday < 0
+                                      ? const Color(0xFFDC2626)
+                                      : const Color(0xFF00C853),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -629,7 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                             Text(
-                              'Balance: ₱${balance.toStringAsFixed(0)}',
+                              'Balance: ${formatPeso(balance, decimals: 0)}',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.muted,
@@ -641,19 +732,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 6),
                         Text(
                           safeToday < 0
-                              ? '₱${safeToday.abs().toStringAsFixed(0)} over'
-                              : '₱${safeToday.toStringAsFixed(0)}',
+                              ? '${formatPeso(safeToday.abs(), decimals: 0)} over'
+                              : formatPeso(safeToday, decimals: 0),
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
-                            color: safeToday < 0 ? const Color(0xFFDC2626) : AppColors.text,
+                            color: safeToday < 0
+                                ? const Color(0xFFDC2626)
+                                : AppColors.text,
                           ),
                         ),
                         if (cycleCountdownText != null) ...[
                           const SizedBox(height: 6),
                           Text(
                             cycleCountdownText,
-                            style: TextStyle(fontSize: 11, color: AppColors.muted),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.muted,
+                            ),
                           ),
                         ],
                       ],
@@ -670,7 +766,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00C853).withValues(alpha: 0.25),
+                          color: const Color(0xFF00C853)
+                              .withValues(alpha: 0.25),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -712,7 +809,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '₱${todayTotal.toStringAsFixed(2)}',
+                          formatPeso(todayTotal, decimals: 2),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 34,
@@ -734,15 +831,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Row(
                                 children: [
                                   Icon(
-                                    diffFromYesterday >= 0 ? Icons.trending_up : Icons.trending_down,
+                                    diffFromYesterday >= 0
+                                        ? Icons.trending_up
+                                        : Icons.trending_down,
                                     color: Colors.white,
                                     size: 14,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
                                     diffFromYesterday >= 0
-                                        ? '₱${diffFromYesterday.toStringAsFixed(0)} more than yesterday'
-                                        : '₱${diffFromYesterday.abs().toStringAsFixed(0)} less than yesterday',
+                                        ? '${formatPeso(diffFromYesterday, decimals: 0)} more than yesterday'
+                                        : '${formatPeso(diffFromYesterday.abs(), decimals: 0)} less than yesterday',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 10,
@@ -755,7 +854,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                '(Yesterday: ₱${yesterdayTotal.toStringAsFixed(0)})',
+                                '(Yesterday: ${formatPeso(yesterdayTotal, decimals: 0)})',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -810,28 +909,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: [
-                        ...expenseProvider.quickAddItems.asMap().entries.map(
-                          (entry) {
-                            final index = entry.key;
-                            final item = entry.value;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 10.0),
-                              child: _buildQuickAddChip(
-                                context,
-                                item.emoji,
-                                item.title,
-                                item.amount,
-                                item.category,
-                                item.id,
-                              ),
-                            );
-                          },
-                        ),
+                        ...expenseProvider.quickAddItems.map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 10.0),
+                            child: _buildQuickAddChip(
+                              context,
+                              item.emoji,
+                              item.title,
+                              item.amount,
+                              item.category,
+                              item.id,
+                            ),
+                          );
+                        }),
                         InkWell(
                           onTap: () => ManageQuickAddModal.show(context),
                           borderRadius: BorderRadius.circular(16),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(16),
@@ -839,7 +937,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.add, size: 14, color: AppColors.greenDark),
+                                Icon(
+                                  Icons.add,
+                                  size: 14,
+                                  color: AppColors.greenDark,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   'Add Custom',
@@ -914,7 +1016,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       alignment: Alignment.center,
                       child: Text(
                         'No expenses added today.',
-                        style: TextStyle(color: AppColors.greyText, fontSize: 12),
+                        style: TextStyle(
+                          color: AppColors.greyText,
+                          fontSize: 12,
+                        ),
                       ),
                     )
                   else
@@ -925,7 +1030,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   const SizedBox(height: 16),
 
-                  // 5. Monthly Budget Overview Card
+                  // 5. Budget Overview Card (current cycle: monthly / weekly / biweekly)
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -940,11 +1045,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.account_balance_wallet_outlined,
-                                    size: 16, color: Color(0xFF00C853)),
+                                Icon(
+                                  Icons.account_balance_wallet_outlined,
+                                  size: 16,
+                                  color: Color(0xFF00C853),
+                                ),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Monthly Budget',
+                                  budgetCardTitle,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
@@ -971,7 +1079,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             minHeight: 8,
                             backgroundColor: AppColors.track,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              budgetPercentage > 0.9 ? Colors.redAccent : const Color(0xFF00C853),
+                              budgetPercentage > 0.9
+                                  ? Colors.redAccent
+                                  : const Color(0xFF00C853),
                             ),
                           ),
                         ),
@@ -991,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '₱${totalSpent.toStringAsFixed(0)}',
+                                  formatPeso(totalSpent, decimals: 0),
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
@@ -1012,11 +1122,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '₱${remaining.toStringAsFixed(0)}',
+                                  formatPeso(remaining, decimals: 0),
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
-                                    color: remaining < 0 ? Colors.redAccent : const Color(0xFF00C853),
+                                    color: remaining < 0
+                                        ? Colors.redAccent
+                                        : const Color(0xFF00C853),
                                   ),
                                 ),
                               ],
@@ -1028,43 +1140,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 6. Student Saving Tip Box
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.greenFaint,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.greenSoft),
+                  // 6. Saving Tips Card (one tip per day; urgent advice when the budget is tight)
+                  TipCard(
+                    heading: 'SAVING TIPS',
+                    emoji: '💰',
+                    tips: savingTips,
+                    urgentTips: savingUrgentTips,
+                    isUrgent: isBudgetUrgent(
+                      spent: totalSpent,
+                      budget: monthlyBudget,
                     ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.circle, size: 8, color: Color(0xFF22C55E)),
-                            SizedBox(width: 6),
-                            Text(
-                              'Student Saving Tip',
-                              style: TextStyle(
-                                color: AppColors.greenDark,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Bringing a refillable water tumbler saves up to ₱40/day on bottled drinks—that\'s over ₱1,200 saved per month!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.greenDeep,
-                            fontSize: 11,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
+                    background: AppColors.greenFaint,
+                    borderColor: AppColors.greenSoft,
+                    headingColor: AppColors.greenDark,
+                    bodyColor: AppColors.greenDeep,
+                    accent: const Color(0xFF22C55E),
+                    offset: 0,
                   ),
                   const SizedBox(height: 80),
                 ],
@@ -1077,81 +1168,87 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickAddChip(
-    BuildContext context, 
-    String emoji, 
-    String title, 
-    double amount, 
+    BuildContext context,
+    String emoji,
+    String title,
+    double amount,
     String category, // 1. Added category parameter
-    String id) {
-  return InkWell(
-    onTap: () => _showPaymentPicker(context, title, amount, category),
-    onLongPress: () {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Remove Shortcut?'),
-          content: Text('Do you want to remove "$title" from Quick Add?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+    String id,
+  ) {
+    return InkWell(
+      onTap: () => _showPaymentPicker(context, title, amount, category),
+      onLongPress: () {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Remove Shortcut?'),
+            content: Text('Do you want to remove "$title" from Quick Add?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Provider.of<ExpenseProvider>(
+                    context,
+                    listen: false,
+                  ).removeQuickAddItem(id);
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('"$title" removed from Quick Add')),
+                  );
+                },
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text2,
+              ),
             ),
-            TextButton(
-              onPressed: () {
-                Provider.of<ExpenseProvider>(context, listen: false)
-                    .removeQuickAddItem(id);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('"$title" removed from Quick Add')),
-                );
-              },
-              child: const Text('Remove', style: TextStyle(color: Colors.red)),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.greenSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                formatPeso(amount, decimals: 0),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.greenDark,
+                ),
+              ),
             ),
           ],
         ),
-      );
-    },
-    borderRadius: BorderRadius.circular(16),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text2,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.greenSoft,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '₱${amount.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: AppColors.greenDark,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildIncomeChip(Income income) {
     return Container(
@@ -1194,7 +1291,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Text(
-            '+₱${income.amount.toStringAsFixed(2)}',
+            '+${formatPeso(income.amount, decimals: 2)}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
@@ -1223,7 +1320,10 @@ class _HomeScreenState extends State<HomeScreen> {
               color: AppColors.greenSoft,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(_getEmojiForExpense(item), style: const TextStyle(fontSize: 16)),
+            child: Text(
+              _getEmojiForExpense(item),
+              style: const TextStyle(fontSize: 16),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1242,16 +1342,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   '${DateFormat('h:mm a').format(item.date)} • ${item.paymentMethod}'
                   '${item.fromSavings ? ' • From savings' : ''}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.greyText,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.greyText),
                 ),
               ],
             ),
           ),
           Text(
-            '₱${item.amount.toStringAsFixed(2)}',
+            formatPeso(item.amount, decimals: 2),
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,

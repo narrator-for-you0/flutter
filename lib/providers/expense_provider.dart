@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/expense.dart';
 import '../models/income.dart';
 import '../models/expense_category.dart';
 import '../models/recurring_expense.dart';
+import '../services/backup_service.dart';
 import '../services/database_helper.dart';
 import '../services/reminder_services.dart';
+import '../utils/format.dart';
 
 /// How often the allowance/budget period repeats. `monthly` keeps today's
 /// behavior (a calendar month); `weekly`/`biweekly` are rolling windows
@@ -32,20 +35,20 @@ class QuickAddItem {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'amount': amount,
-        'emoji': emoji,
-        'category': category,
-      };
+    'id': id,
+    'title': title,
+    'amount': amount,
+    'emoji': emoji,
+    'category': category,
+  };
 
   factory QuickAddItem.fromJson(Map<String, dynamic> json) => QuickAddItem(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        amount: (json['amount'] as num).toDouble(),
-        emoji: json['emoji'] as String,
-        category: json['category'] as String,
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    amount: (json['amount'] as num).toDouble(),
+    emoji: json['emoji'] as String,
+    category: json['category'] as String,
+  );
 }
 
 /// Result of adding an expense, used to decide whether to show the
@@ -128,10 +131,41 @@ class SavingsCycle {
   /// budget + income - spent (- carried shortfall). Negative = ended over.
   final double leftover;
 
-  const SavingsCycle({required this.start, required this.end, required this.leftover});
+  const SavingsCycle({
+    required this.start,
+    required this.end,
+    required this.leftover,
+  });
 
   /// The part that became savings.
   double get saved => leftover > 0 ? leftover : 0.0;
+}
+
+/// What an import actually did, so the UI can say it out loud instead of
+/// claiming everything was restored.
+class BackupImportSummary {
+  final int expensesAdded;
+  final int expensesSkipped;
+  final int incomeAdded;
+  final int incomeSkipped;
+  final int recurringAdded;
+  final int recurringSkipped;
+
+  /// True when the backup's budgets/limits/quick add replaced the current ones.
+  final bool settingsApplied;
+
+  const BackupImportSummary({
+    required this.expensesAdded,
+    required this.expensesSkipped,
+    required this.incomeAdded,
+    required this.incomeSkipped,
+    required this.recurringAdded,
+    required this.recurringSkipped,
+    this.settingsApplied = false,
+  });
+
+  int get rowsAdded => expensesAdded + incomeAdded + recurringAdded;
+  int get rowsSkipped => expensesSkipped + incomeSkipped + recurringSkipped;
 }
 
 class ExpenseProvider with ChangeNotifier {
@@ -189,9 +223,27 @@ class ExpenseProvider with ChangeNotifier {
 
   // Initial Quick Add Items State
   final List<QuickAddItem> _quickAddItems = [
-    QuickAddItem(id: '1', title: 'Siomai Rice', amount: 85.0, emoji: '🍜', category: 'Lunch'),
-    QuickAddItem(id: '2', title: 'Egg & Rice', amount: 80.0, emoji: '🍳', category: 'Breakfast'),
-    QuickAddItem(id: '3', title: 'Milk Tea', amount: 45.0, emoji: '🧋', category: 'Drinks'),
+    QuickAddItem(
+      id: '1',
+      title: 'Siomai Rice',
+      amount: 85.0,
+      emoji: '🍜',
+      category: 'Lunch',
+    ),
+    QuickAddItem(
+      id: '2',
+      title: 'Egg & Rice',
+      amount: 80.0,
+      emoji: '🍳',
+      category: 'Breakfast',
+    ),
+    QuickAddItem(
+      id: '3',
+      title: 'Milk Tea',
+      amount: 45.0,
+      emoji: '🧋',
+      category: 'Drinks',
+    ),
   ];
 
   // Getters
@@ -227,7 +279,11 @@ class ExpenseProvider with ChangeNotifier {
   /// Pure version of [currentCycleStart] that takes an explicit
   /// type/anchor instead of the persisted ones — used by the budget editor
   /// to preview a cycle before the person saves it.
-  DateTime cycleStartFor(AllowanceCycleType type, DateTime anchor, DateTime reference) {
+  DateTime cycleStartFor(
+    AllowanceCycleType type,
+    DateTime anchor,
+    DateTime reference,
+  ) {
     switch (type) {
       case AllowanceCycleType.monthly:
         return DateTime(reference.year, reference.month, 1);
@@ -242,7 +298,10 @@ class ExpenseProvider with ChangeNotifier {
   DateTime cycleEndFor(AllowanceCycleType type, DateTime cycleStart) {
     switch (type) {
       case AllowanceCycleType.monthly:
-        final daysInMonth = DateUtils.getDaysInMonth(cycleStart.year, cycleStart.month);
+        final daysInMonth = DateUtils.getDaysInMonth(
+          cycleStart.year,
+          cycleStart.month,
+        );
         return DateTime(cycleStart.year, cycleStart.month, daysInMonth);
       case AllowanceCycleType.weekly:
         return cycleStart.add(const Duration(days: 6));
@@ -255,10 +314,12 @@ class ExpenseProvider with ChangeNotifier {
   /// type. For `monthly` this is just the 1st of that month — i.e.
   /// **today's exact behavior** — so nothing changes unless the person
   /// switches to weekly/biweekly.
-  DateTime currentCycleStart(DateTime day) => cycleStartFor(_cycleType, _cycleAnchor, day);
+  DateTime currentCycleStart(DateTime day) =>
+      cycleStartFor(_cycleType, _cycleAnchor, day);
 
   /// End (inclusive) of the allowance cycle [day] falls in.
-  DateTime currentCycleEnd(DateTime day) => cycleEndFor(_cycleType, currentCycleStart(day));
+  DateTime currentCycleEnd(DateTime day) =>
+      cycleEndFor(_cycleType, currentCycleStart(day));
 
   /// How many days are in the cycle [day] falls in.
   int cycleLengthInDays(DateTime day) {
@@ -308,7 +369,11 @@ class ExpenseProvider with ChangeNotifier {
     return budgetForCycleKey(budgetKeyFor(_cycleType, currentCycleStart(day)));
   }
 
-  void updateBudgetForCycle(double newBudget, AllowanceCycleType type, DateTime cycleStart) {
+  void updateBudgetForCycle(
+    double newBudget,
+    AllowanceCycleType type,
+    DateTime cycleStart,
+  ) {
     _cycleBudgets[budgetKeyFor(type, cycleStart)] = newBudget;
     notifyListeners();
     _saveSettings();
@@ -321,8 +386,12 @@ class ExpenseProvider with ChangeNotifier {
     final start = currentCycleStart(day);
     final endExclusive = currentCycleEnd(day).add(const Duration(days: 1));
     return _expenses
-        .where((e) =>
-            !e.fromSavings && !e.date.isBefore(start) && e.date.isBefore(endExclusive))
+        .where(
+          (e) =>
+              !e.fromSavings &&
+              !e.date.isBefore(start) &&
+              e.date.isBefore(endExclusive),
+        )
         .fold(0.0, (sum, item) => sum + item.amount);
   }
 
@@ -356,7 +425,8 @@ class ExpenseProvider with ChangeNotifier {
   DateTime? get carryoverFreshFrom => _carryoverFreshFrom;
 
   /// The shortfall (zero or negative) carried into the cycle [day] falls in.
-  double carryoverInto(DateTime day) => _carryoverInto(currentCycleStart(day), 0);
+  double carryoverInto(DateTime day) =>
+      _carryoverInto(currentCycleStart(day), 0);
 
   double _carryoverInto(DateTime cycleStart, int depth) {
     if (depth > 52) return 0.0; // safety net against runaway chains
@@ -367,11 +437,16 @@ class ExpenseProvider with ChangeNotifier {
     final first = firstExpenseDate;
     if (first == null) return 0.0;
 
-    final prevDay = DateTime(cycleStart.year, cycleStart.month, cycleStart.day - 1);
+    final prevDay = DateTime(
+      cycleStart.year,
+      cycleStart.month,
+      cycleStart.day - 1,
+    );
     // Nothing was tracked before you started logging, so nothing to carry.
     if (currentCycleEnd(prevDay).isBefore(first)) return 0.0;
 
-    final prevAvailable = getBudgetForCycle(prevDay) +
+    final prevAvailable =
+        getBudgetForCycle(prevDay) +
         totalIncomeForCycle(prevDay) -
         totalSpentForCycle(prevDay) +
         _carryoverInto(currentCycleStart(prevDay), depth + 1);
@@ -448,7 +523,8 @@ class ExpenseProvider with ChangeNotifier {
       final fresh = _carryoverFreshFrom;
       if (fresh != null && !cursor.isAfter(fresh)) carry = 0.0;
 
-      final leftover = getBudgetForCycle(cursor) +
+      final leftover =
+          getBudgetForCycle(cursor) +
           totalIncomeForCycle(cursor) -
           totalSpentForCycle(cursor) +
           carry;
@@ -471,8 +547,9 @@ class ExpenseProvider with ChangeNotifier {
     return list;
   }
 
-  double get totalSavingsSpent =>
-      _expenses.where((e) => e.fromSavings).fold(0.0, (sum, e) => sum + e.amount);
+  double get totalSavingsSpent => _expenses
+      .where((e) => e.fromSavings)
+      .fold(0.0, (sum, e) => sum + e.amount);
 
   /// What you can still spend from savings (never negative).
   double get savingsBalance {
@@ -496,8 +573,12 @@ class ExpenseProvider with ChangeNotifier {
   // Calculated Metrics (scoped to the current month)
   double totalSpentForMonth(DateTime month) {
     return _expenses
-        .where((e) =>
-            !e.fromSavings && e.date.year == month.year && e.date.month == month.month)
+        .where(
+          (e) =>
+              !e.fromSavings &&
+              e.date.year == month.year &&
+              e.date.month == month.month,
+        )
         .fold(0.0, (sum, item) => sum + item.amount);
   }
 
@@ -545,7 +626,12 @@ class ExpenseProvider with ChangeNotifier {
         .where((i) => !i.date.isBefore(cycleStart) && !i.date.isAfter(dayEnd))
         .fold(0.0, (sum, i) => sum + i.amount);
     final spentBeforeDay = _expenses
-        .where((e) => !e.fromSavings && !e.date.isBefore(cycleStart) && e.date.isBefore(d))
+        .where(
+          (e) =>
+              !e.fromSavings &&
+              !e.date.isBefore(cycleStart) &&
+              e.date.isBefore(d),
+        )
         .fold(0.0, (sum, e) => sum + e.amount);
 
     final daysRemaining = (cycleEnd.difference(d).inDays + 1).clamp(1, 999);
@@ -616,11 +702,13 @@ class ExpenseProvider with ChangeNotifier {
     final start = currentCycleStart(day);
     final endExclusive = currentCycleEnd(day).add(const Duration(days: 1));
     return _expenses
-        .where((e) =>
-            !e.fromSavings &&
-            _matchesBudgetKey(e, key) &&
-            !e.date.isBefore(start) &&
-            e.date.isBefore(endExclusive))
+        .where(
+          (e) =>
+              !e.fromSavings &&
+              _matchesBudgetKey(e, key) &&
+              !e.date.isBefore(start) &&
+              e.date.isBefore(endExclusive),
+        )
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
@@ -631,27 +719,31 @@ class ExpenseProvider with ChangeNotifier {
       final typeKey = typeBudgetKey(t.name);
       final typeLimit = _categoryBudgets[typeKey];
       if (typeLimit != null) {
-        out.add(CategoryBudgetStatus(
-          key: typeKey,
-          label: t.name,
-          emoji: t.emoji,
-          color: t.color,
-          limit: typeLimit,
-          spent: categorySpentForCycle(typeKey, day),
-        ));
+        out.add(
+          CategoryBudgetStatus(
+            key: typeKey,
+            label: t.name,
+            emoji: t.emoji,
+            color: t.color,
+            limit: typeLimit,
+            spent: categorySpentForCycle(typeKey, day),
+          ),
+        );
       }
       for (final s in t.subCategories) {
         final subKey = subBudgetKey(s.label);
         final subLimit = _categoryBudgets[subKey];
         if (subLimit != null) {
-          out.add(CategoryBudgetStatus(
-            key: subKey,
-            label: s.label,
-            emoji: s.emoji,
-            color: s.color,
-            limit: subLimit,
-            spent: categorySpentForCycle(subKey, day),
-          ));
+          out.add(
+            CategoryBudgetStatus(
+              key: subKey,
+              label: s.label,
+              emoji: s.emoji,
+              color: s.color,
+              limit: subLimit,
+              spent: categorySpentForCycle(subKey, day),
+            ),
+          );
         }
       }
     }
@@ -667,14 +759,20 @@ class ExpenseProvider with ChangeNotifier {
 
     final start = currentCycleStart(e.date);
     final endExclusive = currentCycleEnd(e.date).add(const Duration(days: 1));
-    bool inCycle(Expense x) => !x.date.isBefore(start) && x.date.isBefore(endExclusive);
+    bool inCycle(Expense x) =>
+        !x.date.isBefore(start) && x.date.isBefore(endExclusive);
     bool isOriginal(Expense x) =>
         original != null &&
-        (identical(x, original) || (original.id != null && x.id == original.id));
+        (identical(x, original) ||
+            (original.id != null && x.id == original.id));
 
     final hits = <CategoryLimitHit>[];
     final candidates = [
-      (typeBudgetKey(e.type), CategoryData.typeByName(e.type).name, CategoryData.typeByName(e.type).emoji),
+      (
+        typeBudgetKey(e.type),
+        CategoryData.typeByName(e.type).name,
+        CategoryData.typeByName(e.type).emoji,
+      ),
       (subBudgetKey(e.category), e.category, CategoryData.emojiFor(e.category)),
     ];
     for (final (key, label, emoji) in candidates) {
@@ -682,8 +780,13 @@ class ExpenseProvider with ChangeNotifier {
       if (cap == null) continue;
 
       final others = _expenses
-          .where((x) =>
-              !x.fromSavings && !isOriginal(x) && inCycle(x) && _matchesBudgetKey(x, key))
+          .where(
+            (x) =>
+                !x.fromSavings &&
+                !isOriginal(x) &&
+                inCycle(x) &&
+                _matchesBudgetKey(x, key),
+          )
           .fold(0.0, (sum, x) => sum + x.amount);
       final after = others + e.amount;
 
@@ -696,7 +799,14 @@ class ExpenseProvider with ChangeNotifier {
       }
 
       if (after > cap && before <= cap) {
-        hits.add(CategoryLimitHit(label: label, emoji: emoji, limit: cap, total: after));
+        hits.add(
+          CategoryLimitHit(
+            label: label,
+            emoji: emoji,
+            limit: cap,
+            total: after,
+          ),
+        );
       }
     }
     return hits;
@@ -706,6 +816,9 @@ class ExpenseProvider with ChangeNotifier {
   // Recurring expenses
   // ---------------------------------------------------------------------------
   List<RecurringExpense> get recurringExpenses => _recurring;
+
+  /// Why the last add/update of a recurring expense failed (for the UI).
+  String? lastRecurringError;
 
   Future<void> fetchRecurring() async {
     try {
@@ -724,8 +837,11 @@ class ExpenseProvider with ChangeNotifier {
       final id = await DatabaseHelper.instance.insertRecurring(r);
       _recurring.add(r.copyWith(id: id));
     } catch (e) {
-      debugPrint('Could not save recurring expense: $e');
-      return null;
+      // Same fallback as expenses: no database (e.g. Windows without the
+      // desktop sqlite setup) -> keep it in memory for this session.
+      debugPrint('Saving recurring expense in memory: $e');
+      lastRecurringError = '$e';
+      _recurring.add(r.copyWith(id: DateTime.now().millisecondsSinceEpoch));
     }
     notifyListeners();
     return generateDueRecurring();
@@ -738,8 +854,8 @@ class ExpenseProvider with ChangeNotifier {
     try {
       await DatabaseHelper.instance.updateRecurring(r);
     } catch (e) {
-      debugPrint('Could not update recurring expense: $e');
-      return null;
+      debugPrint('Updating recurring expense in memory only: $e');
+      lastRecurringError = '$e';
     }
     final i = _recurring.indexWhere((x) => x.id == r.id);
     if (i != -1) {
@@ -757,7 +873,9 @@ class ExpenseProvider with ChangeNotifier {
     var updated = r.copyWith(active: active);
     if (active) {
       final skipped = r.dueOccurrences(DateTime.now());
-      if (skipped.isNotEmpty) updated = updated.copyWith(lastGenerated: skipped.last);
+      if (skipped.isNotEmpty) {
+        updated = updated.copyWith(lastGenerated: skipped.last);
+      }
     }
     await updateRecurring(updated);
   }
@@ -807,8 +925,9 @@ class ExpenseProvider with ChangeNotifier {
 
         for (final day in due) {
           // Belt and braces: never log the same rule twice for one day.
-          final already = _expenses
-              .any((x) => x.recurringId == rid && DateUtils.isSameDay(x.date, day));
+          final already = _expenses.any(
+            (x) => x.recurringId == rid && DateUtils.isSameDay(x.date, day),
+          );
           if (already) continue;
 
           final expense = Expense(
@@ -879,7 +998,11 @@ class ExpenseProvider with ChangeNotifier {
   Future<void> _checkCycleRollover() async {
     final now = DateTime.now();
     final thisStart = currentCycleStart(now);
-    final prevDay = DateTime(thisStart.year, thisStart.month, thisStart.day - 1);
+    final prevDay = DateTime(
+      thisStart.year,
+      thisStart.month,
+      thisStart.day - 1,
+    );
     final prevStart = currentCycleStart(prevDay);
     final marker = DateFormat('yyyy-MM-dd').format(prevStart);
     if (_lastSummaryCycle == marker) return;
@@ -900,11 +1023,13 @@ class ExpenseProvider with ChangeNotifier {
     final String body;
     if (finished.leftover > 0) {
       title = 'Period complete 🎉';
-      body = '$label ended: you saved ₱${finished.leftover.toStringAsFixed(0)}. '
+      body =
+          '$label ended: you saved ${formatPeso(finished.leftover, decimals: 0)}. '
           "It's now in your savings.";
     } else if (finished.leftover < 0) {
       title = 'Period complete';
-      body = '$label ended ₱${finished.leftover.abs().toStringAsFixed(0)} over budget. '
+      body =
+          '$label ended ${formatPeso(finished.leftover.abs(), decimals: 0)} over budget. '
           'The shortfall carries into this period.';
     } else {
       title = 'Period complete';
@@ -936,8 +1061,9 @@ class ExpenseProvider with ChangeNotifier {
 
   /// Expenses on a given day, newest first.
   List<Expense> getExpensesOn(DateTime day) {
-    final list =
-        _expenses.where((e) => DateUtils.isSameDay(e.date, day)).toList();
+    final list = _expenses
+        .where((e) => DateUtils.isSameDay(e.date, day))
+        .toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
@@ -969,8 +1095,9 @@ class ExpenseProvider with ChangeNotifier {
   /// before you started using the app.
   DateTime? get firstExpenseDate {
     if (_expenses.isEmpty) return null;
-    final earliest =
-        _expenses.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b);
+    final earliest = _expenses
+        .map((e) => e.date)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
     return DateTime(earliest.year, earliest.month, earliest.day);
   }
 
@@ -1016,7 +1143,8 @@ class ExpenseProvider with ChangeNotifier {
     final totalsByWeekday = <int, double>{};
     final daysByWeekday = <int, int>{};
     for (var d = first; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
-      totalsByWeekday[d.weekday] = (totalsByWeekday[d.weekday] ?? 0) + totalSpentOn(d);
+      totalsByWeekday[d.weekday] =
+          (totalsByWeekday[d.weekday] ?? 0) + totalSpentOn(d);
       daysByWeekday[d.weekday] = (daysByWeekday[d.weekday] ?? 0) + 1;
     }
 
@@ -1100,77 +1228,240 @@ class ExpenseProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsKey);
       if (raw == null) return; // nothing saved yet -> keep the defaults
-
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-
-      final budgets = (data['budgets'] as Map<String, dynamic>?) ?? {};
-      _cycleBudgets
-        ..clear()
-        ..addAll(budgets.map((k, v) => MapEntry(k, (v as num).toDouble())));
-
-      _customDailyLimit = (data['dailyLimit'] as num?)?.toDouble();
-
-      final cycleTypeStr = data['cycleType'] as String?;
-      if (cycleTypeStr != null) {
-        _cycleType = AllowanceCycleType.values.firstWhere(
-          (t) => t.name == cycleTypeStr,
-          orElse: () => AllowanceCycleType.monthly,
-        );
-      }
-      final anchorStr = data['cycleAnchor'] as String?;
-      if (anchorStr != null) {
-        _cycleAnchor = DateTime.parse(anchorStr);
-      }
-      final freshStr = data['carryoverFreshFrom'] as String?;
-      _carryoverFreshFrom = freshStr != null ? DateTime.tryParse(freshStr) : null;
-
-      final catBudgets = (data['categoryBudgets'] as Map<String, dynamic>?) ?? {};
-      _categoryBudgets
-        ..clear()
-        ..addAll(catBudgets.map((k, v) => MapEntry(k, (v as num).toDouble())));
-      _lastSummaryCycle = data['lastSummaryCycle'] as String?;
-      _cycleSummaryEnabled = data['cycleSummaryEnabled'] as bool? ?? true;
-
-      _reminderEnabled = data['reminderEnabled'] as bool? ?? false;
-      final reminderMinutes = data['reminderMinutes'] as int?;
-      if (reminderMinutes != null) {
-        _reminderTime = TimeOfDay(hour: reminderMinutes ~/ 60, minute: reminderMinutes % 60);
-      }
-
-      final items = data['quickAdd'] as List<dynamic>?;
-      if (items != null) {
-        _quickAddItems
-          ..clear()
-          ..addAll(items.map((e) => QuickAddItem.fromJson(e as Map<String, dynamic>)));
-      }
+      _applySettings(jsonDecode(raw) as Map<String, dynamic>);
     } catch (e) {
       debugPrint('Could not load settings: $e');
     }
   }
 
+  /// Overwrites the in-memory settings from [data] — same keys as
+  /// [exportSettings] — then persists them. Loading at launch and restoring a
+  /// backup both go through here, so a restored budget behaves exactly like a
+  /// saved one. Returns false if [data] was too broken to apply; the previous
+  /// settings are left alone in that case.
+  bool applyImportedSettings(Map<String, dynamic> data) {
+    try {
+      _applySettings(data);
+      notifyListeners();
+      _saveSettings();
+      return true;
+    } catch (e) {
+      debugPrint('Could not apply imported settings: $e');
+      return false;
+    }
+  }
+
+  void _applySettings(Map<String, dynamic> data) {
+    final budgets = (data['budgets'] as Map<String, dynamic>?) ?? {};
+    _cycleBudgets
+      ..clear()
+      ..addAll(budgets.map((k, v) => MapEntry(k, (v as num).toDouble())));
+
+    _customDailyLimit = (data['dailyLimit'] as num?)?.toDouble();
+
+    final cycleTypeStr = data['cycleType'] as String?;
+    if (cycleTypeStr != null) {
+      _cycleType = AllowanceCycleType.values.firstWhere(
+        (t) => t.name == cycleTypeStr,
+        orElse: () => AllowanceCycleType.monthly,
+      );
+    }
+    final anchorStr = data['cycleAnchor'] as String?;
+    if (anchorStr != null) {
+      _cycleAnchor = DateTime.parse(anchorStr);
+    }
+    final freshStr = data['carryoverFreshFrom'] as String?;
+    _carryoverFreshFrom = freshStr != null ? DateTime.tryParse(freshStr) : null;
+
+    final catBudgets = (data['categoryBudgets'] as Map<String, dynamic>?) ?? {};
+    _categoryBudgets
+      ..clear()
+      ..addAll(catBudgets.map((k, v) => MapEntry(k, (v as num).toDouble())));
+    _lastSummaryCycle = data['lastSummaryCycle'] as String?;
+    _cycleSummaryEnabled = data['cycleSummaryEnabled'] as bool? ?? true;
+
+    _reminderEnabled = data['reminderEnabled'] as bool? ?? false;
+    final reminderMinutes = data['reminderMinutes'] as int?;
+    if (reminderMinutes != null) {
+      _reminderTime = TimeOfDay(
+        hour: reminderMinutes ~/ 60,
+        minute: reminderMinutes % 60,
+      );
+    }
+
+    final items = data['quickAdd'] as List<dynamic>?;
+    if (items != null) {
+      _quickAddItems
+        ..clear()
+        ..addAll(
+          items.map((e) => QuickAddItem.fromJson(e as Map<String, dynamic>)),
+        );
+    }
+  }
+
+  /// Everything this app keeps in preferences, in the shape a backup stores it.
+  /// Doubles as the payload for [_saveSettings], so the two can't drift apart.
+  Map<String, dynamic> exportSettings() {
+    return {
+      'budgets': Map<String, double>.from(_cycleBudgets),
+      'dailyLimit': _customDailyLimit,
+      'quickAdd': _quickAddItems.map((e) => e.toJson()).toList(),
+      'cycleType': _cycleType.name,
+      'cycleAnchor': _cycleAnchor.toIso8601String(),
+      'carryoverFreshFrom': _carryoverFreshFrom?.toIso8601String(),
+      'categoryBudgets': Map<String, double>.from(_categoryBudgets),
+      'lastSummaryCycle': _lastSummaryCycle,
+      'cycleSummaryEnabled': _cycleSummaryEnabled,
+      'reminderEnabled': _reminderEnabled,
+      'reminderMinutes': _reminderTime.hour * 60 + _reminderTime.minute,
+    };
+  }
+
   Future<void> _saveSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _prefsKey,
-        jsonEncode({
-          'budgets': _cycleBudgets,
-          'dailyLimit': _customDailyLimit,
-          'quickAdd': _quickAddItems.map((e) => e.toJson()).toList(),
-          'cycleType': _cycleType.name,
-          'cycleAnchor': _cycleAnchor.toIso8601String(),
-          'carryoverFreshFrom': _carryoverFreshFrom?.toIso8601String(),
-          'categoryBudgets': _categoryBudgets,
-          'lastSummaryCycle': _lastSummaryCycle,
-          'cycleSummaryEnabled': _cycleSummaryEnabled,
-          'reminderEnabled': _reminderEnabled,
-          'reminderMinutes': _reminderTime.hour * 60 + _reminderTime.minute,
-        }),
-      );
+      await prefs.setString(_prefsKey, jsonEncode(exportSettings()));
     } catch (e) {
       debugPrint('Could not save settings: $e');
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Backup / restore (Phase 5)
+  // ---------------------------------------------------------------------------
+
+  /// Merges a backup into what's already here and reports what it did.
+  ///
+  /// Nothing currently in the app is deleted or overwritten. Rows are matched
+  /// on content rather than id (an id only means anything in the database that
+  /// produced it), so importing the same file twice adds nothing the second
+  /// time, and a backup that overlaps this device's data only fills the gaps.
+  ///
+  /// Settings (budgets, cycle, limits, quick add) are only replaced when
+  /// [includeSettings] is set, since those are the one thing an import would
+  /// otherwise silently overwrite.
+  ///
+  /// Doesn't log anything the recurring rules owed by today: the next launch
+  /// or resume picks that up, and doing it here would risk double-logging
+  /// occurrences that the file and this device both already have.
+  Future<BackupImportSummary> importBackup(
+    BackupFile backup, {
+    bool includeSettings = false,
+  }) async {
+    final expenseKeys = {for (final e in _expenses) _expenseKey(e)};
+    final incomeKeys = {for (final i in _income) _incomeKey(i)};
+    final recurringIdsByKey = <String, int?>{
+      for (final r in _recurring) _recurringKey(r): r.id,
+    };
+
+    var expensesAdded = 0;
+    var expensesSkipped = 0;
+    var incomeAdded = 0;
+    var incomeSkipped = 0;
+    var recurringAdded = 0;
+    var recurringSkipped = 0;
+
+    // The file's recurring id -> the id this database just handed out, so the
+    // expenses that came with the file stay linked to their rule. Left
+    // unresolved, they'd look hand-entered and the rule would log them again.
+    final recurringIdMap = <int, int>{};
+
+    for (final incoming in backup.recurring) {
+      final rule = incoming.rule;
+      final key = _recurringKey(rule);
+      if (recurringIdsByKey.containsKey(key)) {
+        // Already have this rule. Still remember which one, so the file's
+        // expenses point at the rule we actually hold.
+        final existingId = recurringIdsByKey[key];
+        if (incoming.backupId != null && existingId != null) {
+          recurringIdMap[incoming.backupId!] = existingId;
+        }
+        recurringSkipped++;
+        continue;
+      }
+
+      int newId;
+      try {
+        newId = await DatabaseHelper.instance.insertRecurring(rule);
+      } catch (e) {
+        debugPrint('Saving imported recurring expense in memory: $e');
+        newId = DateTime.now().millisecondsSinceEpoch;
+      }
+      _recurring.add(rule.copyWith(id: newId));
+      recurringIdsByKey[key] = newId;
+      recurringAdded++;
+      if (incoming.backupId != null) recurringIdMap[incoming.backupId!] = newId;
+    }
+
+    for (final e in backup.expenses) {
+      if (!expenseKeys.add(_expenseKey(e))) {
+        expensesSkipped++;
+        continue;
+      }
+      final oldRecurringId = e.recurringId;
+      final row = oldRecurringId == null
+          ? e
+          : e.copyWith(recurringId: recurringIdMap[oldRecurringId]);
+      try {
+        final id = await DatabaseHelper.instance.insertExpense(row);
+        _expenses.add(row.copyWith(id: id));
+      } catch (e) {
+        debugPrint('Saving imported expense in memory: $e');
+        _expenses.add(row);
+      }
+      expensesAdded++;
+    }
+    _expenses.sort((a, b) => b.date.compareTo(a.date));
+
+    for (final i in backup.income) {
+      if (!incomeKeys.add(_incomeKey(i))) {
+        incomeSkipped++;
+        continue;
+      }
+      try {
+        final id = await DatabaseHelper.instance.insertIncome(i);
+        _income.add(i.copyWith(id: id));
+      } catch (e) {
+        debugPrint('Saving imported income in memory: $e');
+        _income.add(i);
+      }
+      incomeAdded++;
+    }
+    _income.sort((a, b) => b.date.compareTo(a.date));
+
+    var settingsApplied = false;
+    if (includeSettings && backup.hasSettings) {
+      settingsApplied = applyImportedSettings(backup.settings);
+    }
+
+    notifyListeners();
+    _syncReminder();
+
+    return BackupImportSummary(
+      expensesAdded: expensesAdded,
+      expensesSkipped: expensesSkipped,
+      incomeAdded: incomeAdded,
+      incomeSkipped: incomeSkipped,
+      recurringAdded: recurringAdded,
+      recurringSkipped: recurringSkipped,
+      settingsApplied: settingsApplied,
+    );
+  }
+
+  String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// What makes an expense "the same one" across two devices: same day, same
+  /// amount, same what-it-was-for. Amount is rounded to two decimals so a
+  /// float that made the round trip through JSON still matches.
+  String _expenseKey(Expense e) =>
+      '${_dayKey(e.date)}|${e.amount.toStringAsFixed(2)}|${e.title}|${e.category}';
+
+  String _incomeKey(Income i) =>
+      '${_dayKey(i.date)}|${i.amount.toStringAsFixed(2)}|${i.note}';
+
+  String _recurringKey(RecurringExpense r) =>
+      '${r.title}|${r.amount.toStringAsFixed(2)}|${r.frequency.name}|${_dayKey(r.startDate)}';
 
   // Load all expenses
   Future<void> fetchExpenses() async {
@@ -1279,7 +1570,9 @@ class ExpenseProvider with ChangeNotifier {
 
   /// Income received on a given day, newest first.
   List<Income> getIncomeOn(DateTime day) {
-    final list = _income.where((i) => DateUtils.isSameDay(i.date, day)).toList();
+    final list = _income
+        .where((i) => DateUtils.isSameDay(i.date, day))
+        .toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
@@ -1333,7 +1626,11 @@ class ExpenseProvider with ChangeNotifier {
     if (windowDays <= 0) return 0;
 
     var total = 0.0;
-    for (var d = windowStart; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+    for (
+      var d = windowStart;
+      !d.isAfter(end);
+      d = d.add(const Duration(days: 1))
+    ) {
       total += totalSpentOn(d);
     }
     return total / windowDays;
@@ -1349,7 +1646,11 @@ class ExpenseProvider with ChangeNotifier {
     if (balance <= 0) return DateTime.now();
     final daysLeft = (balance / avg).floor();
     final today = DateTime.now();
-    return DateTime(today.year, today.month, today.day).add(Duration(days: daysLeft));
+    return DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).add(Duration(days: daysLeft));
   }
 
   // Add a new expense. Returns a LimitCheck so the UI can show the
@@ -1399,11 +1700,13 @@ class ExpenseProvider with ChangeNotifier {
 
     // Everything else logged on the (new) day, without the original.
     final others = _expenses
-        .where((e) =>
-            !identical(e, original) &&
-            !(original.id != null && e.id == original.id) &&
-            !e.fromSavings &&
-            DateUtils.isSameDay(e.date, updated.date))
+        .where(
+          (e) =>
+              !identical(e, original) &&
+              !(original.id != null && e.id == original.id) &&
+              !e.fromSavings &&
+              DateUtils.isSameDay(e.date, updated.date),
+        )
         .fold(0.0, (sum, e) => sum + e.amount);
 
     final sameDay = DateUtils.isSameDay(original.date, updated.date);
@@ -1471,7 +1774,12 @@ class ExpenseProvider with ChangeNotifier {
   }
 
   // Quick Add Management Methods
-  void addQuickAddItem(String title, double amount, String emoji, String category) {
+  void addQuickAddItem(
+    String title,
+    double amount,
+    String emoji,
+    String category,
+  ) {
     _quickAddItems.add(
       QuickAddItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -1498,16 +1806,19 @@ class ExpenseProvider with ChangeNotifier {
     return _expenses.where((expense) {
       if (filterIndex == 0) {
         // THIS WEEK
-        final startOfWeek = DateTime(now.year, now.month, now.day)
-            .subtract(Duration(days: now.weekday - 1));
+        final startOfWeek = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(Duration(days: now.weekday - 1));
         final endOfWeek = startOfWeek.add(const Duration(days: 7));
-        return expense.date.isAfter(startOfWeek.subtract(const Duration(seconds: 1))) &&
+        return expense.date.isAfter(
+              startOfWeek.subtract(const Duration(seconds: 1)),
+            ) &&
             expense.date.isBefore(endOfWeek);
-
       } else if (filterIndex == 1) {
         // THIS MONTH
         return expense.date.year == now.year && expense.date.month == now.month;
-
       } else {
         // LAST MONTH
         final lastMonthDate = DateTime(now.year, now.month - 1, 1);
@@ -1542,8 +1853,11 @@ class ExpenseProvider with ChangeNotifier {
     for (final item in filtered) {
       totals[item.category] = (totals[item.category] ?? 0) + item.amount;
     }
-    return _buildBreakdown(totals, getTotalSpending(filterIndex),
-        (name) => CategoryData.colorFor(name));
+    return _buildBreakdown(
+      totals,
+      getTotalSpending(filterIndex),
+      (name) => CategoryData.colorFor(name),
+    );
   }
 
   // Breakdown by major type (Food / Transportation / Other)
@@ -1553,8 +1867,11 @@ class ExpenseProvider with ChangeNotifier {
     for (final item in filtered) {
       totals[item.type] = (totals[item.type] ?? 0) + item.amount;
     }
-    return _buildBreakdown(totals, getTotalSpending(filterIndex),
-        (name) => CategoryData.typeByName(name).color);
+    return _buildBreakdown(
+      totals,
+      getTotalSpending(filterIndex),
+      (name) => CategoryData.typeByName(name).color,
+    );
   }
 
   List<Map<String, dynamic>> _buildBreakdown(
@@ -1574,7 +1891,9 @@ class ExpenseProvider with ChangeNotifier {
       };
     }).toList();
 
-    breakdown.sort((a, b) => (b['amt'] as double).compareTo(a['amt'] as double));
+    breakdown.sort(
+      (a, b) => (b['amt'] as double).compareTo(a['amt'] as double),
+    );
     return breakdown;
   }
 
@@ -1587,10 +1906,12 @@ class ExpenseProvider with ChangeNotifier {
       return List.generate(7, (i) {
         final day = now.subtract(Duration(days: 6 - i));
         return _expenses
-            .where((e) =>
-                e.date.year == day.year &&
-                e.date.month == day.month &&
-                e.date.day == day.day)
+            .where(
+              (e) =>
+                  e.date.year == day.year &&
+                  e.date.month == day.month &&
+                  e.date.day == day.day,
+            )
             .fold(0.0, (sum, item) => sum + item.amount);
       });
     } else if (filterIndex == 1) {
@@ -1599,11 +1920,13 @@ class ExpenseProvider with ChangeNotifier {
         final startDay = i * 7 + 1;
         final endDay = (i + 1) * 7;
         return _expenses
-            .where((e) =>
-                e.date.year == now.year &&
-                e.date.month == now.month &&
-                e.date.day >= startDay &&
-                e.date.day <= endDay)
+            .where(
+              (e) =>
+                  e.date.year == now.year &&
+                  e.date.month == now.month &&
+                  e.date.day >= startDay &&
+                  e.date.day <= endDay,
+            )
             .fold(0.0, (sum, item) => sum + item.amount);
       });
     } else {
@@ -1613,11 +1936,13 @@ class ExpenseProvider with ChangeNotifier {
         final startDay = i * 7 + 1;
         final endDay = (i + 1) * 7;
         return _expenses
-            .where((e) =>
-                e.date.year == lastMonth.year &&
-                e.date.month == lastMonth.month &&
-                e.date.day >= startDay &&
-                e.date.day <= endDay)
+            .where(
+              (e) =>
+                  e.date.year == lastMonth.year &&
+                  e.date.month == lastMonth.month &&
+                  e.date.day >= startDay &&
+                  e.date.day <= endDay,
+            )
             .fold(0.0, (sum, item) => sum + item.amount);
       });
     }
@@ -1627,8 +1952,18 @@ class ExpenseProvider with ChangeNotifier {
   String getPeriodLabel(int filterIndex) {
     final now = DateTime.now();
     final monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     if (filterIndex == 0) {

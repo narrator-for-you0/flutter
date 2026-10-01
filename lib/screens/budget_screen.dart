@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../data/tips.dart';
 import '../providers/expense_provider.dart';
 import 'edit_budget_modal.dart';
 import 'category_budget_modal.dart';
 import 'recurring_expenses_screen.dart';
 import '../widgets/daily_limit_widgets.dart';
 import '../widgets/savings_view.dart';
+import '../widgets/tip_card.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -63,9 +67,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
       ),
       child: Row(
         children: [
-          pill('Budget', !_showSavings, () => setState(() => _showSavings = false)),
           pill(
-            'Savings • ₱${provider.savingsBalance.toStringAsFixed(0)}',
+            'Budget',
+            !_showSavings,
+            () => setState(() => _showSavings = false),
+          ),
+          pill(
+            'Savings â€¢ ${formatPeso(provider.savingsBalance, decimals: 0)}',
             _showSavings,
             () => setState(() => _showSavings = true),
           ),
@@ -113,14 +121,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
     double carry,
     AllowanceCycleType type,
   ) async {
-    final amount = carry.abs().toStringAsFixed(0);
+    final amount = formatPeso(carry.abs());
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Start fresh?'),
         content: Text(
-          'This clears the ₱$amount carried over, so you begin ${_thisPeriodLabel(type)} '
+          'This clears the $amount carried over, so you begin ${_thisPeriodLabel(type)} '
           'with your full budget. Your expense history stays exactly as it is.',
         ),
         actions: [
@@ -132,7 +140,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text(
               'Start fresh',
-              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Color(0xFFDC2626),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -162,7 +173,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     double carry,
     AllowanceCycleType type,
   ) {
-    final amount = carry.abs().toStringAsFixed(0);
+    final amount = formatPeso(carry.abs());
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -190,7 +201,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
               ),
               Text(
-                '−₱$amount',
+                'âˆ’$amount',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -201,18 +212,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'You ended ${_previousPeriodLabel(type)} ₱$amount over budget, so what you '
-            'can spend ${_thisPeriodLabel(type)} (and your daily limit) is ₱$amount lower.',
+            'You ended ${_previousPeriodLabel(type)} $amount over budget, so what you '
+            'can spend ${_thisPeriodLabel(type)} (and your daily limit) is $amount lower.',
             style: TextStyle(fontSize: 12, color: AppColors.muted, height: 1.4),
           ),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () => _confirmFreshStart(context, provider, carry, type),
+              onPressed: () =>
+                  _confirmFreshStart(context, provider, carry, type),
               child: const Text(
                 'Start fresh',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFDC2626),
+                ),
               ),
             ),
           ),
@@ -244,15 +259,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
         final budget = provider.getBudgetForCycle(now);
         final totalSpent = provider.totalSpentForCycle(now);
-        final remaining = (budget - totalSpent) < 0 ? 0.0 : (budget - totalSpent);
-        final percentage = budget == 0 ? 0.0 : (totalSpent / budget).clamp(0.0, 1.0);
+        final remaining = (budget - totalSpent) < 0
+            ? 0.0
+            : (budget - totalSpent);
+        final percentage = budget == 0
+            ? 0.0
+            : (totalSpent / budget).clamp(0.0, 1.0);
         final percentageInt = (percentage * 100).toInt();
         final carry = provider.carryoverInto(now);
 
         if (_showSavings) {
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -280,18 +302,28 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     children: [
                       Text(
                         'Budget Management',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       SizedBox(height: 2),
                       Text(
                         'Plan and monitor your food allowance',
-                        style: TextStyle(color: AppColors.greyText, fontSize: 12),
+                        style: TextStyle(
+                          color: AppColors.greyText,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                   OutlinedButton.icon(
                     onPressed: () => EditBudgetModal.show(context),
-                    icon: const Icon(Icons.edit, size: 14, color: Color(0xFF00C853)),
+                    icon: const Icon(
+                      Icons.edit,
+                      size: 14,
+                      color: Color(0xFF00C853),
+                    ),
                     label: const Text(
                       'Edit Budget',
                       style: TextStyle(color: Color(0xFF00C853), fontSize: 11),
@@ -337,7 +369,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                             value: percentage,
                             strokeWidth: 16,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              percentage > 0.8 ? Colors.red : const Color(0xFFFFB300),
+                              percentage > 0.8
+                                  ? Colors.red
+                                  : const Color(0xFFFFB300),
                             ),
                             backgroundColor: AppColors.trackAlt,
                           ),
@@ -371,7 +405,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '₱${remaining.toStringAsFixed(0)} left',
+                                '${formatPeso(remaining, decimals: 0)} left',
                                 style: const TextStyle(
                                   color: Color(0xFFFF8F00),
                                   fontSize: 10,
@@ -387,9 +421,21 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatColumn(_budgetStatLabel(cycleType), '₱${budget.toStringAsFixed(0)}', AppColors.strongText),
-                        _buildStatColumn('SPENT', '₱${totalSpent.toStringAsFixed(0)}', const Color(0xFFFF8F00)),
-                        _buildStatColumn('REMAINING', '₱${remaining.toStringAsFixed(0)}', const Color(0xFF00C853)),
+                        _buildStatColumn(
+                          _budgetStatLabel(cycleType),
+                          formatPeso(budget, decimals: 0),
+                          AppColors.strongText,
+                        ),
+                        _buildStatColumn(
+                          'SPENT',
+                          formatPeso(totalSpent, decimals: 0),
+                          const Color(0xFFFF8F00),
+                        ),
+                        _buildStatColumn(
+                          'REMAINING',
+                          formatPeso(remaining, decimals: 0),
+                          const Color(0xFF00C853),
+                        ),
                       ],
                     ),
                   ],
@@ -397,7 +443,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Available-to-spend vs. real cash on hand — deliberately two
+              // Available-to-spend vs. real cash on hand â€” deliberately two
               // separate numbers, since income/carryover can make them differ.
               Row(
                 children: [
@@ -405,7 +451,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     child: _metricCard(
                       label: 'AVAILABLE THIS CYCLE',
                       value: provider.availableThisCycle(now),
-                      caption: 'Budget + income − spent, incl. carryover',
+                      caption: 'Budget + income âˆ’ spent, incl. carryover',
                       accent: const Color(0xFF00C853),
                     ),
                   ),
@@ -472,7 +518,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'You\'ve used over $percentageInt% of your allowance. Consider moderating extra expenses this week.',
-                        style: TextStyle(fontSize: 11, color: AppColors.black87),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.black87,
+                        ),
                       ),
                     ],
                   ),
@@ -495,115 +544,103 @@ class _BudgetScreenState extends State<BudgetScreen> {
               const SizedBox(height: 16),
 
               // Suggested pace for the rest of the current cycle
-              Builder(builder: (context) {
-                final today = DateTime(now.year, now.month, now.day);
-                final daysRemaining = (cycleEnd.difference(today).inDays + 1).clamp(1, 999);
-                final recommendedDaily = remaining / daysRemaining;
+              Builder(
+                builder: (context) {
+                  final today = DateTime(now.year, now.month, now.day);
+                  final daysRemaining = (cycleEnd.difference(today).inDays + 1)
+                      .clamp(1, 999);
+                  final recommendedDaily = remaining / daysRemaining;
 
-                return Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.greenFaint,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.greenSoft),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.event_available, size: 16, color: Color(0xFF00C853)),
-                              SizedBox(width: 8),
-                              Text(
-                                'SUGGESTED DAILY SPEND',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.greenDeep,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            '₱${recommendedDaily.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF00C853),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'To stay on budget for remaining $daysRemaining days',
-                        style: TextStyle(fontSize: 11, color: AppColors.black54),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline, size: 14, color: AppColors.black45),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Spending ₱${recommendedDaily.toStringAsFixed(0)} or less per day ensures you won\'t run out of food money before this period ends!',
-                              style: TextStyle(fontSize: 11, color: AppColors.black54),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-
-              // Campus Budget Tips Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.orangeSoft,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.orangeBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.greenFaint,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.greenSoft),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('🧡', style: TextStyle(fontSize: 13)),
-                        SizedBox(width: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.event_available,
+                                  size: 16,
+                                  color: Color(0xFF00C853),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'SUGGESTED DAILY SPEND',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.greenDeep,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              formatPeso(recommendedDaily, decimals: 0),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF00C853),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
-                          'CAMPUS BUDGET TIPS',
+                          'To stay on budget for remaining $daysRemaining days',
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.orangeText,
+                            color: AppColors.black54,
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 14,
+                              color: AppColors.black45,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Spending ${formatPeso(recommendedDaily, decimals: 0)} or less per day ensures you won\'t run out of food money before this period ends!',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.black54,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    SizedBox(height: 10),
-                    _BudgetTipRow(
-                      title: 'Silog & Canteen Combos: ',
-                      body: 'Pair rice plates with water to keep lunch under ₱100.',
-                    ),
-                    SizedBox(height: 8),
-                    _BudgetTipRow(
-                      title: 'GCash Cashback: ',
-                      body: 'Look out for student canteen QR promos for 5–10% vouchers.',
-                    ),
-                    SizedBox(height: 8),
-                    _BudgetTipRow(
-                      title: 'Merienda Limit: ',
-                      body: 'Cap mid-afternoon milk tea or snacks to 3 times a week.',
-                    ),
-                  ],
-                ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Campus Budget Tips Card (one tip per day; urgent advice when tight)
+              TipCard(
+                heading: 'CAMPUS BUDGET TIPS',
+                emoji: 'ðŸ§¡',
+                tips: campusTips,
+                urgentTips: campusUrgentTips,
+                isUrgent: isBudgetUrgent(spent: totalSpent, budget: budget),
+                background: AppColors.orangeSoft,
+                borderColor: AppColors.orangeBorder,
+                headingColor: AppColors.orangeText,
+                // Offset so this card doesn't land on the same tip as the
+                // Saving Tips card on Home; both pools are the same length.
+                offset: 5,
               ),
               const SizedBox(height: 80),
             ],
@@ -613,7 +650,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
-  Widget _categoryLimitsCard(BuildContext context, ExpenseProvider provider, DateTime now) {
+  Widget _categoryLimitsCard(
+    BuildContext context,
+    ExpenseProvider provider,
+    DateTime now,
+  ) {
     final statuses = provider.categoryBudgetStatuses(now);
 
     return Container(
@@ -632,7 +673,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.pie_chart_outline, size: 16, color: Color(0xFF3B82F6)),
+                  const Icon(
+                    Icons.pie_chart_outline,
+                    size: 16,
+                    color: Color(0xFF3B82F6),
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'CATEGORY LIMITS',
@@ -668,7 +713,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
             Text(
               'Cap how much you spend on Food, Transportation, or a specific '
               'category like Coffee each period. You\'ll get a heads-up when you pass one.',
-              style: TextStyle(fontSize: 11, color: AppColors.black54, height: 1.4),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.black54,
+                height: 1.4,
+              ),
             )
           else ...[
             Text(
@@ -713,8 +762,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
               ),
               Text(
-                '₱${s.spent.toStringAsFixed(0)} / ₱${s.limit.toStringAsFixed(0)}',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+                '${formatPeso(s.spent, decimals: 0)} / ${formatPeso(s.limit, decimals: 0)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
             ],
           ),
@@ -731,8 +784,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
           if (s.isOver) ...[
             const SizedBox(height: 4),
             Text(
-              '₱${(-s.remaining).toStringAsFixed(0)} over',
-              style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600),
+              '${formatPeso((-s.remaining), decimals: 0)} over',
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ],
@@ -741,7 +798,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   Widget _recurringCard(BuildContext context, ExpenseProvider provider) {
-    final activeCount = provider.recurringExpenses.where((r) => r.active).length;
+    final activeCount = provider.recurringExpenses
+        .where((r) => r.active)
+        .length;
 
     return Material(
       color: AppColors.cardAlt,
@@ -778,7 +837,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     Text(
                       activeCount == 0
                           ? 'Auto-log things like weekly load or printing'
-                          : '$activeCount active • logged automatically when due',
+                          : '$activeCount active â€¢ logged automatically when due',
                       style: TextStyle(fontSize: 11, color: AppColors.black54),
                     ),
                   ],
@@ -819,13 +878,21 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            '₱${value.toStringAsFixed(0)}',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: accent),
+            formatPeso(value, decimals: 0),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: accent,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             caption,
-            style: TextStyle(fontSize: 10, color: AppColors.black45, height: 1.3),
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.black45,
+              height: 1.3,
+            ),
           ),
         ],
       ),
@@ -850,35 +917,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BudgetTipRow extends StatelessWidget {
-  final String title;
-  final String body;
-
-  const _BudgetTipRow({required this.title, required this.body});
-
-  @override
-  Widget build(BuildContext context) {
-    AppColors.sync(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('✓ ', style: TextStyle(fontSize: 12, color: Color(0xFF00C853), fontWeight: FontWeight.bold)),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: TextStyle(fontSize: 12, color: AppColors.black87, height: 1.4),
-              children: [
-                TextSpan(text: title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: body),
-              ],
-            ),
           ),
         ),
       ],

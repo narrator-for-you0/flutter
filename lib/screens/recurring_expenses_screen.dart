@@ -1,31 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../models/expense_category.dart';
 import '../models/recurring_expense.dart';
 import '../providers/expense_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
+import '../widgets/empty_state.dart';
 import 'recurring_expense_modal.dart';
 
-/// Lists every recurring expense: pause/resume, tap to edit, swipe to delete.
+/// Brand green â€” identical in light and dark, so it stays const.
+const _green = Color(0xFF00C853);
+
+/// The list of recurring expenses: what repeats, when it repeats next, and a
+/// switch to pause one without losing it.
 class RecurringExpensesScreen extends StatelessWidget {
   const RecurringExpensesScreen({super.key});
-
-  static const _green = Color(0xFF00C853);
-  static const _red = Color(0xFFDC2626);
-  static Color get _dark => AppColors.text;
-  static Color get _muted => AppColors.muted;
-
-  String _statusText(RecurringExpense r) {
-    if (!r.active) return 'Paused';
-    final next = r.nextOccurrence(DateTime.now());
-    if (next == null) return 'Ended';
-    return 'Next: ${DateFormat('EEE, MMM d').format(next)}';
-  }
 
   @override
   Widget build(BuildContext context) {
     AppColors.sync(context);
+    final provider = context.watch<ExpenseProvider>();
+    final rules = provider.recurringExpenses;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -33,183 +30,180 @@ class RecurringExpensesScreen extends StatelessWidget {
         backgroundColor: AppColors.bg,
         elevation: 0,
         title: Text(
-          'Recurring expenses',
-          style: TextStyle(color: _dark, fontWeight: FontWeight.bold),
+          'Recurring Expenses',
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
         ),
-        iconTheme: IconThemeData(color: _dark),
+        iconTheme: IconThemeData(color: AppColors.text),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => RecurringExpenseModal.show(context),
         backgroundColor: _green,
+        foregroundColor: Colors.white,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
-          'Add recurring',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          'New',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
       ),
-      body: Consumer<ExpenseProvider>(
-        builder: (context, provider, _) {
-          final items = provider.recurringExpenses;
-          final messenger = ScaffoldMessenger.of(context);
-
-          if (items.isEmpty) return _emptyState();
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            children: [
-              Text(
-                'Logged automatically when due. If you skip a few days, the missed '
-                'ones are filled in with their original dates the next time you open the app.',
-                style: TextStyle(fontSize: 11, color: _muted, height: 1.4),
-              ),
-              const SizedBox(height: 14),
-              ...items.map((r) => _dismissibleRow(context, provider, messenger, r)),
-            ],
-          );
-        },
-      ),
+      body: rules.isEmpty
+          ? EmptyState(
+              icon: Icons.repeat,
+              title: 'Nothing repeats yet',
+              message:
+                  "Set up weekly load, a printing allowance, or anything else "
+                  "that lands on a schedule and we'll log it for you.",
+              accent: _green,
+              badgeColor: AppColors.greenSoft,
+              actionLabel: 'New recurring expense',
+              onAction: () => RecurringExpenseModal.show(context),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+              itemCount: rules.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, i) => _RecurringTile(rule: rules[i]),
+            ),
     );
   }
+}
 
-  Widget _emptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.repeat, size: 44, color: AppColors.faint),
-            const SizedBox(height: 12),
-            Text(
-              'No recurring expenses yet',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _dark),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Add things that repeat, like weekly load, printing, or a daily '
-              'jeepney fare, and they log themselves.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: _muted, height: 1.4),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+/// One row: name, amount, cadence, and when it logs next. Swipe left to delete
+/// (with an undo), tap to edit, use the switch to pause.
+class _RecurringTile extends StatelessWidget {
+  final RecurringExpense rule;
 
-  Widget _dismissibleRow(
-    BuildContext context,
-    ExpenseProvider provider,
-    ScaffoldMessengerState messenger,
-    RecurringExpense r,
-  ) {
+  const _RecurringTile({required this.rule});
+
+  @override
+  Widget build(BuildContext context) {
+    AppColors.sync(context);
+    final type = CategoryData.typeOfCategory(rule.category);
+    final next = rule.nextOccurrence(DateTime.now());
+    final paused = !rule.active;
+
     return Dismissible(
-      key: ValueKey('recurring_${r.id}'),
+      key: ValueKey(rule.id ?? rule.title),
       direction: DismissDirection.endToStart,
       background: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.only(right: 20),
         alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 22),
         decoration: BoxDecoration(
-          color: AppColors.redSoft2,
-          borderRadius: BorderRadius.circular(14),
+          color: AppColors.redSoft,
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete_outline, color: _red),
+        child: const Icon(Icons.delete_outline, color: Colors.redAccent),
       ),
-      onDismissed: (_) {
-        provider.deleteRecurring(r);
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Deleted ${r.title}. Past expenses stay in your history.'),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () => provider.restoreRecurring(r),
+      onDismissed: (_) => _delete(context),
+      child: Material(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => RecurringExpenseModal.show(context, existing: rule),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: type.softBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(type.emoji, style: const TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              rule.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: paused
+                                    ? AppColors.muted
+                                    : AppColors.text,
+                              ),
+                            ),
+                          ),
+                          if (paused) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              'PAUSED',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${formatPeso(rule.amount, decimals: 0)} â€¢ '
+                        '${rule.frequency.label} â€¢ ${rule.category}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: AppColors.muted),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        next == null
+                            ? 'Finished'
+                            : 'Next: ${DateFormat('MMM d').format(next)}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: paused ? AppColors.faint : AppColors.greenDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: rule.active,
+                  activeThumbColor: _green,
+                  onChanged: (v) => context
+                      .read<ExpenseProvider>()
+                      .setRecurringActive(rule, v),
+                ),
+              ],
             ),
           ),
-        );
-      },
-      child: _row(context, provider, r),
+        ),
+      ),
     );
   }
 
-  Widget _row(BuildContext context, ExpenseProvider provider, RecurringExpense r) {
-    final type = CategoryData.typeOfCategory(r.category);
+  Future<void> _delete(BuildContext context) async {
+    final provider = context.read<ExpenseProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    // Expenses this rule already logged stay in your history.
+    await provider.deleteRecurring(rule);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => RecurringExpenseModal.show(context, existing: r),
-          child: Opacity(
-            opacity: r.active ? 1 : 0.55,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: type.softBg,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      CategoryData.emojiFor(r.category),
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          r.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: _dark,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '₱${r.amount.toStringAsFixed(r.amount % 1 == 0 ? 0 : 2)} • ${r.frequency.label} • ${r.category}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: _muted),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _statusText(r),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: r.active ? _green : _muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: r.active,
-                    activeThumbColor: _green,
-                    onChanged: (v) => provider.setRecurringActive(r, v),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Removed "${rule.title}"'),
+        backgroundColor: AppColors.tooltipBg,
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: _green,
+          onPressed: () => provider.restoreRecurring(rule),
         ),
       ),
     );

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+
 import '../providers/expense_provider.dart';
 import '../widgets/spending_calendar.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
+import '../widgets/empty_state.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: const Key('stats_screen'));
@@ -15,7 +18,8 @@ class StatsScreen extends StatefulWidget {
 class _StatsScreenState extends State<StatsScreen> {
   int _selectedFilter = 1; // 0: This Week, 1: This Month, 2: Last Month
   int _view = 0; // 0: Overview, 1: Calendar
-  bool _byType = false; // breakdown grouping: false = subcategory, true = major type
+  bool _byType =
+      false; // breakdown grouping: false = subcategory, true = major type
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +58,10 @@ class _StatsScreenState extends State<StatsScreen> {
                       if (_view == 0)
                         Text(
                           periodLabel,
-                          style: TextStyle(fontSize: 14, color: AppColors.faint),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.faint,
+                          ),
                         ),
                     ],
                   ),
@@ -67,46 +74,69 @@ class _StatsScreenState extends State<StatsScreen> {
                   if (_view == 1)
                     const SpendingCalendar()
                   else ...[
-                  // Filter Buttons
-                  _buildFilterSegment(),
-                  const SizedBox(height: 20),
+                    // Filter Buttons
+                    _buildFilterSegment(),
+                    const SizedBox(height: 20),
 
-                  // Donut Chart Card
-                  _buildDonutChartCard(total, breakdown),
-                  const SizedBox(height: 16),
+                    // Nothing logged in this period: the charts would be a grey
+                    // ring and a fake axis, so say so plainly instead. The header,
+                    // view switch, and filter stay put so the user can pick
+                    // another period or open the calendar.
+                    if (count == 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: EmptyState(
+                          icon: Icons.query_stats,
+                          title: 'No data for $periodLabel',
+                          message:
+                              'Once you log expenses in this period the donut, '
+                              'trend, and category breakdown will fill in here.',
+                          accent: const Color(0xFF00C853),
+                          badgeColor: AppColors.greenSoft,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 40,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      // Donut Chart Card
+                      _buildDonutChartCard(total, breakdown),
+                      const SizedBox(height: 16),
 
-                  // Metrics Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'DAILY AVERAGE',
-                          value: '₱${dailyAvg.toStringAsFixed(2)}',
-                          subtitle: 'per active day',
-                        ),
+                      // Metrics Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricCard(
+                              title: 'DAILY AVERAGE',
+                              value: formatPeso(dailyAvg, decimals: 2),
+                              subtitle: 'per active day',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildMetricCard(
+                              title: 'TRANSACTIONS',
+                              value: '$count',
+                              subtitle: 'expenses logged',
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'TRANSACTIONS',
-                          value: '$count',
-                          subtitle: 'expenses logged',
-                        ),
-                      ),
+                      const SizedBox(height: 16),
+
+                      // Dynamic Bar Chart Card
+                      _buildBarChartCard(barData, _selectedFilter),
+                      const SizedBox(height: 16),
+
+                      // Category Breakdown
+                      _buildBreakdownCard(breakdown),
+                      const SizedBox(height: 16),
+
+                      // Insight Banner
+                      _buildInsightBanner(),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Dynamic Bar Chart Card
-                  _buildBarChartCard(barData, _selectedFilter),
-                  const SizedBox(height: 16),
-
-                  // Category Breakdown
-                  _buildBreakdownCard(breakdown),
-                  const SizedBox(height: 16),
-
-                  // Insight Banner
-                  _buildInsightBanner(),
                   ],
                 ],
               ),
@@ -142,20 +172,18 @@ class _StatsScreenState extends State<StatsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon,
-                    size: 16,
-                    color: isSelected
-                        ? const Color(0xFF00C853)
-                        : AppColors.muted),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isSelected ? const Color(0xFF00C853) : AppColors.muted,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: isSelected
-                        ? AppColors.text
-                        : AppColors.muted,
+                    color: isSelected ? AppColors.text : AppColors.muted,
                   ),
                 ),
               ],
@@ -201,9 +229,7 @@ class _StatsScreenState extends State<StatsScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? AppColors.greenDark
-                  : AppColors.faint,
+              color: isSelected ? AppColors.greenDark : AppColors.faint,
             ),
           ),
         ),
@@ -212,10 +238,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        chip('By Category', false),
-        chip('By Type', true),
-      ],
+      children: [chip('By Category', false), chip('By Type', true)],
     );
   }
 
@@ -261,7 +284,10 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildDonutChartCard(double total, List<Map<String, dynamic>> breakdown) {
+  Widget _buildDonutChartCard(
+    double total,
+    List<Map<String, dynamic>> breakdown,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
@@ -285,7 +311,7 @@ class _StatsScreenState extends State<StatsScreen> {
                               value: 100,
                               title: '',
                               radius: 18,
-                            )
+                            ),
                           ]
                         : breakdown.map((item) {
                             return PieChartSectionData(
@@ -300,17 +326,23 @@ class _StatsScreenState extends State<StatsScreen> {
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('TOTAL',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.faint,
-                            fontWeight: FontWeight.bold)),
+                    Text(
+                      'TOTAL',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.faint,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text('₱${total.toStringAsFixed(2)}',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.text)),
+                    Text(
+                      formatPeso(total, decimals: 2),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -323,28 +355,39 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildMetricCard(
-      {required String title, required String value, required String subtitle}) {
+  Widget _buildMetricCard({
+    required String title,
+    required String value,
+    required String subtitle,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.faint)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppColors.faint,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.text,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(subtitle,
-              style: TextStyle(fontSize: 11, color: AppColors.faint)),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 11, color: AppColors.faint),
+          ),
         ],
       ),
     );
@@ -372,26 +415,32 @@ class _StatsScreenState extends State<StatsScreen> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                        color: AppColors.amberSoft,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.bar_chart,
-                        color: Color(0xFFFFA000), size: 18),
+                      color: AppColors.amberSoft,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.bar_chart,
+                      color: Color(0xFFFFA000),
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('TREND',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.text)),
+                      Text(
+                        'TREND',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
                       Text(
                         filterIndex == 0
                             ? 'Past 7 days spending'
                             : 'Weekly breakdown',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.faint),
+                        style: TextStyle(fontSize: 11, color: AppColors.faint),
                       ),
                     ],
                   ),
@@ -417,7 +466,8 @@ class _StatsScreenState extends State<StatsScreen> {
                         if (index < 0 || index >= labels.length) {
                           return const SizedBox.shrink();
                         }
-                        final isLast = index == labels.length - 1 && filterIndex == 0;
+                        final isLast =
+                            index == labels.length - 1 && filterIndex == 0;
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
@@ -425,8 +475,9 @@ class _StatsScreenState extends State<StatsScreen> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 10,
-                              fontWeight:
-                                  isLast ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: isLast
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                               color: isLast
                                   ? const Color(0xFF00C853)
                                   : AppColors.faint,
@@ -436,9 +487,15 @@ class _StatsScreenState extends State<StatsScreen> {
                       },
                     ),
                   ),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
@@ -480,55 +537,74 @@ class _StatsScreenState extends State<StatsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('BREAKDOWN',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text)),
-              Text('Ranked by spending',
-                  style: TextStyle(fontSize: 11, color: AppColors.faint)),
+              Text(
+                'BREAKDOWN',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.text,
+                ),
+              ),
+              Text(
+                'Ranked by spending',
+                style: TextStyle(fontSize: 11, color: AppColors.faint),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           if (breakdown.isEmpty)
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                'No expenses recorded for this period',
-                style: TextStyle(fontSize: 12, color: AppColors.faint),
-              ),
+            EmptyState(
+              icon: Icons.bar_chart_outlined,
+              title: 'Nothing here for this period',
+              message: 'Log an expense and the breakdown will fill in.',
+              compact: true,
+              padding: const EdgeInsets.symmetric(vertical: 16),
             )
           else
-            ...breakdown.map((c) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                          radius: 5, backgroundColor: c['color'] as Color),
-                      const SizedBox(width: 10),
-                      Text(c['name'] as String,
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text)),
-                      const Spacer(),
-                      Text('(${c['pct']})',
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.faint)),
-                      const SizedBox(width: 8),
-                      Text('₱${(c['amt'] as double).toStringAsFixed(2)}',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.text)),
-                    ],
-                  ),
-                )),
+            ...breakdown.map(
+              (c) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 5,
+                      backgroundColor: c['color'] as Color,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      c['name'] as String,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '(${c['pct']})',
+                      style: TextStyle(fontSize: 11, color: AppColors.faint),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      formatPeso((c['amt'] as double), decimals: 2),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -540,7 +616,9 @@ class _StatsScreenState extends State<StatsScreen> {
       decoration: BoxDecoration(
         color: AppColors.greenSoftAlt,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFA5D6A7).withValues(alpha: 0.5)),
+        border: Border.all(
+          color: const Color(0xFFA5D6A7).withValues(alpha: 0.5),
+        ),
       ),
       child: Row(
         children: [
@@ -550,14 +628,19 @@ class _StatsScreenState extends State<StatsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('You\'re doing great!',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.greenDark)),
+                Text(
+                  'You\'re doing great!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.greenDark,
+                  ),
+                ),
                 SizedBox(height: 2),
-                Text('Keep track of your meals and drinks to stay on budget!',
-                    style: TextStyle(fontSize: 11, color: AppColors.greenDark)),
+                Text(
+                  'Keep track of your meals and drinks to stay on budget!',
+                  style: TextStyle(fontSize: 11, color: AppColors.greenDark),
+                ),
               ],
             ),
           ),
@@ -572,9 +655,10 @@ class _StatsScreenState extends State<StatsScreen> {
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4)),
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
       ],
     );
   }

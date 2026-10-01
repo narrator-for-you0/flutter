@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../models/income.dart';
 import '../themes/app_colors.dart';
+import '../utils/format.dart';
+import '../widgets/empty_state.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -34,6 +37,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   String _incomeLabel(Income i) => i.note.isEmpty ? 'Income received' : i.note;
 
+  void _clearFilters() {
+    setState(() {
+      _searchQuery = '';
+      _selectedType = 'All';
+      _selectedCategory = 'All';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     AppColors.sync(context);
@@ -51,14 +62,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ? <Expense>[]
         : allExpenses.where((expense) {
             final matchesSearch = expense.title.toLowerCase().contains(query);
-            final matchesType = _selectedType == 'All' || expense.type == _selectedType;
-            final matchesCategory = _selectedCategory == 'All' || expense.category == _selectedCategory;
+            final matchesType =
+                _selectedType == 'All' || expense.type == _selectedType;
+            final matchesCategory =
+                _selectedCategory == 'All' ||
+                expense.category == _selectedCategory;
             return matchesSearch && matchesType && matchesCategory;
           }).toList();
 
     final filteredIncome = !showIncome
         ? <Income>[]
-        : allIncome.where((i) => _incomeLabel(i).toLowerCase().contains(query)).toList();
+        : allIncome
+              .where((i) => _incomeLabel(i).toLowerCase().contains(query))
+              .toList();
 
     // Group expenses + income by Date, newest first within each day
     final Map<String, List<Object>> groupedEntries = {};
@@ -101,10 +117,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   SizedBox(height: 4),
                   Text(
                     'Track and search your expenses and income',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: labelColor,
-                    ),
+                    style: TextStyle(fontSize: 13, color: labelColor),
                   ),
                 ],
               ),
@@ -130,10 +143,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
-                              onChanged: (val) => setState(() => _searchQuery = val),
+                              onChanged: (val) =>
+                                  setState(() => _searchQuery = val),
                               decoration: InputDecoration(
-                                hintText: 'Search (e.g., Pizza, Jeepney, Allowance)',
-                                hintStyle: TextStyle(color: labelColor, fontSize: 13),
+                                hintText:
+                                    'Search (e.g., Pizza, Jeepney, Allowance)',
+                                hintStyle: TextStyle(
+                                  color: labelColor,
+                                  fontSize: 13,
+                                ),
                                 border: InputBorder.none,
                               ),
                             ),
@@ -161,12 +179,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
             _buildChipRow(
               items: [
                 {'label': 'All', 'icon': ''},
-                ...CategoryData.types.map((t) => {'label': t.name, 'icon': t.emoji}),
+                ...CategoryData.types.map(
+                  (t) => {'label': t.name, 'icon': t.emoji},
+                ),
                 {'label': _incomeChip, 'icon': '💰'},
               ],
               selected: _selectedType,
               countFor: (label) {
-                if (label == 'All') return allExpenses.length + allIncome.length;
+                if (label == 'All') {
+                  return allExpenses.length + allIncome.length;
+                }
                 if (label == _incomeChip) return allIncome.length;
                 return allExpenses.where((e) => e.type == label).length;
               },
@@ -182,13 +204,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _buildChipRow(
                 items: [
                   {'label': 'All', 'icon': ''},
-                  ...CategoryData.typeByName(_selectedType)
-                      .subCategories
+                  ...CategoryData.typeByName(_selectedType).subCategories
                       .map((s) => {'label': s.label, 'icon': s.emoji}),
                 ],
                 selected: _selectedCategory,
                 countFor: (label) {
-                  final inType = allExpenses.where((e) => e.type == _selectedType);
+                  final inType = allExpenses.where(
+                    (e) => e.type == _selectedType,
+                  );
                   return label == 'All'
                       ? inType.length
                       : inType.where((e) => e.category == label).length;
@@ -201,26 +224,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
             // Expense Cards Grouped by Date
             Expanded(
               child: sortedDates.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nothing found',
-                        style: TextStyle(color: labelColor),
-                      ),
-                    )
+                  ? (allExpenses.isEmpty && allIncome.isEmpty)
+                        // Nothing has ever been logged — point at the fix.
+                        ? EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'No entries yet',
+                            message:
+                                'Expenses and income you log will show up here, '
+                                'grouped by day.',
+                            accent: primaryGreen,
+                            badgeColor: AppColors.greenSoft,
+                          )
+                        // Something exists, but the search or filters hide it.
+                        : EmptyState(
+                            icon: Icons.search_off,
+                            title: 'Nothing matches',
+                            message:
+                                'No entries match your search and filters yet. '
+                                'Try a different term or widen the filters.',
+                            actionLabel: 'Clear search & filters',
+                            onAction: _clearFilters,
+                          )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
                       itemCount: sortedDates.length,
                       itemBuilder: (context, index) {
                         final dateStr = sortedDates[index];
                         final entries = groupedEntries[dateStr]!;
-                        final totalSpent = entries
-                            .whereType<Expense>()
-                            .fold(0.0, (sum, item) => sum + item.amount);
-                        final totalReceived = entries
-                            .whereType<Income>()
-                            .fold(0.0, (sum, item) => sum + item.amount);
+                        final totalSpent = entries.whereType<Expense>().fold(
+                          0.0,
+                          (sum, item) => sum + item.amount,
+                        );
+                        final totalReceived = entries.whereType<Income>().fold(
+                          0.0,
+                          (sum, item) => sum + item.amount,
+                        );
 
-                        return _buildDateCardGroup(dateStr, entries, totalSpent, totalReceived);
+                        return _buildDateCardGroup(
+                          dateStr,
+                          entries,
+                          totalSpent,
+                          totalReceived,
+                        );
                       },
                     ),
             ),
@@ -297,7 +345,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   ) {
     final DateTime parsedDate = DateTime.parse(dateStr);
     final isToday = DateUtils.isSameDay(parsedDate, DateTime.now());
-    final isYesterday = DateUtils.isSameDay(parsedDate, DateTime.now().subtract(const Duration(days: 1)));
+    final isYesterday = DateUtils.isSameDay(
+      parsedDate,
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
 
     String formattedHeader = DateFormat('MMMM d, yyyy').format(parsedDate);
     if (isToday) {
@@ -323,7 +374,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_outlined, size: 16, color: primaryGreen),
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 16,
+                      color: primaryGreen,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       formattedHeader,
@@ -336,7 +391,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -371,10 +429,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Column(
               children: [
                 if (totalSpent > 0 || totalReceived == 0)
-                  _footerRow('Daily Total', '₱${totalSpent.toStringAsFixed(2)}'),
-                if (totalSpent > 0 && totalReceived > 0) const SizedBox(height: 6),
+                  _footerRow(
+                    'Daily Total',
+                    formatPeso(totalSpent, decimals: 2),
+                  ),
+                if (totalSpent > 0 && totalReceived > 0)
+                  const SizedBox(height: 6),
                 if (totalReceived > 0)
-                  _footerRow('Received', '+₱${totalReceived.toStringAsFixed(2)}'),
+                  _footerRow(
+                    'Received',
+                    '+${formatPeso(totalReceived, decimals: 2)}',
+                  ),
               ],
             ),
           ),
@@ -422,7 +487,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Icon(Icons.add_card, size: 20, color: AppColors.greenDark),
+                child: Icon(
+                  Icons.add_card,
+                  size: 20,
+                  color: AppColors.greenDark,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -446,7 +515,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.greenSoft,
                             borderRadius: BorderRadius.circular(6),
@@ -466,7 +538,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Text(
-                '+₱${income.amount.toStringAsFixed(2)}',
+                '+${formatPeso(income.amount, decimals: 2)}',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -528,20 +600,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         const SizedBox(width: 6),
                         // Payment Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: lightBgColor,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             expense.paymentMethod,
-                            style: TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: labelColor,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                         if (expense.fromSavings) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(6),
@@ -564,7 +646,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
               // Price
               Text(
-                '₱${expense.amount.toStringAsFixed(2)}',
+                formatPeso(expense.amount, decimals: 2),
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,

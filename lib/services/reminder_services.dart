@@ -14,7 +14,8 @@ class ReminderService {
   ReminderService._();
   static final ReminderService instance = ReminderService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
   // Sync calls run one at a time so a cancel from one can't interleave with
@@ -29,7 +30,9 @@ class ReminderService {
     if (_ready) return;
     try {
       tzdata.initializeTimeZones();
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
       final windowsSettings = WindowsInitializationSettings(
         appName: 'Food Allowance Tracker',
         appUserModelId: 'com.foodallowance.tracker',
@@ -53,8 +56,10 @@ class ReminderService {
     await _init();
     if (!_ready) return false;
     try {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       if (android != null) {
         return await android.requestNotificationsPermission() ?? false;
       }
@@ -67,7 +72,10 @@ class ReminderService {
 
   /// Shows the "your period ended" summary right now. Called by
   /// ExpenseProvider when it notices a budget period finished.
-  Future<void> showCycleSummary({required String title, required String body}) async {
+  Future<void> showCycleSummary({
+    required String title,
+    required String body,
+  }) async {
     await _init();
     if (!_ready) return;
     try {
@@ -126,7 +134,13 @@ class ReminderService {
 
       for (var i = 0; i < _daysAhead; i++) {
         if (i == 0 && loggedToday) continue; // already logged: no nudge tonight
-        final when = DateTime(now.year, now.month, now.day + i, time.hour, time.minute);
+        final when = DateTime(
+          now.year,
+          now.month,
+          now.day + i,
+          time.hour,
+          time.minute,
+        );
         if (!when.isAfter(now)) continue;
 
         await _plugin.zonedSchedule(
