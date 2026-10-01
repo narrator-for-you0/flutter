@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/expense.dart';
@@ -8,7 +12,8 @@ import '../widgets/daily_limit_widgets.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_proverder.dart';
 import 'manange_quick_modal.dart';
-import 'reminder_settings_modal.dart';
+import 'setting_screen.dart';
+import '../themes/app_colors.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.onViewAll});
@@ -55,18 +60,18 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Paid with?',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+                  color: AppColors.text,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 '$title • ₱${amount.toStringAsFixed(0)}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                style: TextStyle(fontSize: 12, color: AppColors.faint),
               ),
               const SizedBox(height: 16),
               Row(
@@ -108,16 +113,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: AppColors.card,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFF1F5F9)),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Text(
                           method,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF334155),
+                            color: AppColors.text2,
                           ),
                         ),
                       ),
@@ -136,13 +141,129 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showEditProfileDialog(BuildContext context) {
     final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
     final user = profileProvider.user;
-    final expenseProvider = Provider.of<ExpenseProvider>(context, listen: false);
 
     final nameController = TextEditingController(text: user.name);
     final infoController = TextEditingController(text: user.studentInfo);
-    // the budget lives in ExpenseProvider (same one the Budget tab edits)
-    final budgetController = TextEditingController(text: expenseProvider.monthlyBudget.toStringAsFixed(0));
     String selectedEmoji = user.avatarEmoji;
+
+    // Photo shown in the dialog. Starts as the saved photo (if any); a newly
+    // picked image is only copied into the app's storage when Save is tapped.
+    String? photoPath = user.avatarImagePath;
+    bool photoChanged = false;
+
+    /// Opens a square crop screen. Returns the cropped file's path, or null
+    /// if the user backed out. On platforms without a cropper (Windows /
+    /// desktop testing) the image is returned uncropped.
+    Future<String?> cropPhoto(String sourcePath) async {
+      if (!(Platform.isAndroid || Platform.isIOS)) return sourcePath;
+      try {
+        final cropped = await ImageCropper().cropImage(
+          sourcePath: sourcePath,
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+          maxWidth: 512,
+          maxHeight: 512,
+          compressQuality: 85,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop photo',
+              toolbarColor: const Color(0xFF00C853),
+              toolbarWidgetColor: Colors.white,
+              activeControlsWidgetColor: const Color(0xFF00C853),
+              cropStyle: CropStyle.circle,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              hideBottomControls: false,
+            ),
+            IOSUiSettings(
+              title: 'Crop photo',
+              cropStyle: CropStyle.circle,
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+              aspectRatioPickerButtonHidden: true,
+            ),
+          ],
+        );
+        return cropped?.path;
+      } catch (e) {
+        debugPrint('Could not crop image: $e');
+        return null;
+      }
+    }
+
+    Future<void> pickPhoto(StateSetter setModalState) async {
+      try {
+        // No maxWidth/maxHeight here: crop the full-size photo, and the
+        // cropper shrinks the result to 512x512.
+        final picked = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+        );
+        if (picked == null) return;
+        final cropped = await cropPhoto(picked.path);
+        if (cropped == null) return; // cancelled: keep the current photo
+        setModalState(() {
+          photoPath = cropped;
+          photoChanged = true;
+        });
+      } catch (e) {
+        debugPrint('Could not pick image: $e');
+      }
+    }
+
+    Future<void> recropPhoto(StateSetter setModalState) async {
+      final current = photoPath;
+      if (current == null) return;
+      final cropped = await cropPhoto(current);
+      if (cropped == null) return;
+      setModalState(() {
+        photoPath = cropped;
+        photoChanged = true;
+      });
+    }
+
+    void showPhotoOptions(BuildContext sheetContext, StateSetter setModalState) {
+      showModalBottomSheet(
+        context: sheetContext,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (optionsCtx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF00C853)),
+                title: const Text('Choose photo'),
+                onTap: () {
+                  Navigator.pop(optionsCtx);
+                  pickPhoto(setModalState);
+                },
+              ),
+              if (photoPath != null && (Platform.isAndroid || Platform.isIOS))
+                ListTile(
+                  leading: const Icon(Icons.crop, color: Color(0xFF00C853)),
+                  title: const Text('Adjust crop'),
+                  onTap: () {
+                    Navigator.pop(optionsCtx);
+                    recropPhoto(setModalState);
+                  },
+                ),
+              if (photoPath != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+                  title: const Text('Remove photo'),
+                  onTap: () {
+                    Navigator.pop(optionsCtx);
+                    setModalState(() {
+                      photoPath = null;
+                      photoChanged = true;
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
     final List<String> avatarOptions = ['👨‍💻', '👩‍💻', '🎓', '📚', '⚡', '💻', '🎒'];
 
@@ -171,12 +292,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Edit Profile',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                          color: AppColors.text,
                         ),
                       ),
                       IconButton(
@@ -186,25 +307,61 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Center(
+                    child: GestureDetector(
+                      onTap: () => showPhotoOptions(ctx, setModalState),
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: AppColors.greenSoft,
+                            backgroundImage:
+                                photoPath != null ? FileImage(File(photoPath!)) : null,
+                            child: photoPath == null
+                                ? Text(selectedEmoji, style: const TextStyle(fontSize: 34))
+                                : null,
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00C853),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
                     'Select Avatar',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.muted),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: avatarOptions.map((emoji) {
-                      final isSelected = emoji == selectedEmoji;
+                      final isSelected = photoPath == null && emoji == selectedEmoji;
                       return GestureDetector(
                         onTap: () {
                           setModalState(() {
                             selectedEmoji = emoji;
+                            // choosing an emoji switches back from a photo
+                            if (photoPath != null) {
+                              photoPath = null;
+                              photoChanged = true;
+                            }
                           });
                         },
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+                            color: isSelected ? AppColors.greenSoft : AppColors.card,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: isSelected ? const Color(0xFF00C853) : Colors.transparent,
@@ -237,16 +394,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: budgetController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Monthly Budget Target (₱)',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -258,22 +405,34 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
                         final newName = nameController.text.trim();
                         final newInfo = infoController.text.trim();
-                        final newBudget = double.tryParse(budgetController.text) ?? expenseProvider.monthlyBudget;
+                        final navigator = Navigator.of(ctx);
+                        final messenger = ScaffoldMessenger.of(context);
 
                         profileProvider.updateProfile(
                           name: newName.isNotEmpty ? newName : user.name,
                           studentInfo: newInfo.isNotEmpty ? newInfo : user.studentInfo,
-                          monthlyBudget: newBudget,
                           avatarEmoji: selectedEmoji,
                         );
-                        if (newBudget > 0) expenseProvider.updateBudget(newBudget);
 
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Profile updated successfully!')),
+                        var photoFailed = false;
+                        if (photoChanged) {
+                          if (photoPath == null) {
+                            await profileProvider.removeAvatarPhoto();
+                          } else {
+                            photoFailed = !await profileProvider.setAvatarPhoto(photoPath!);
+                          }
+                        }
+
+                        navigator.pop();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(photoFailed
+                                ? 'Profile saved, but the photo could not be saved.'
+                                : 'Profile updated successfully!'),
+                          ),
                         );
                       },
                       child: const Text(
@@ -294,6 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Consumer2<ExpenseProvider, UserProfileProvider>(
       builder: (context, expenseProvider, userProvider, child) {
         final expenses = expenseProvider.expenses;
@@ -352,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.bg,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
@@ -369,8 +529,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             DateFormat('MMMM d, yyyy').format(now),
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            style: TextStyle(
+                              color: AppColors.greyText,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
@@ -383,10 +543,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   '${_getGreeting(now)}, ${user.name}!',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E293B),
+                                    color: AppColors.text,
                                   ),
                                 ),
                               ),
@@ -396,36 +556,36 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           Text(
                             user.studentInfo,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Color(0xFF64748B),
+                              color: AppColors.muted,
                             ),
                           ),
                         ],
                       ),
                       ),
                       IconButton(
-                        tooltip: 'Daily reminder',
-                        onPressed: () => ReminderSettingsModal.show(context),
-                        icon: Icon(
-                          expenseProvider.reminderEnabled
-                              ? Icons.notifications_active
-                              : Icons.notifications_none_outlined,
-                          color: expenseProvider.reminderEnabled
-                              ? const Color(0xFF00C853)
-                              : const Color(0xFF64748B),
+                        tooltip: 'Settings',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const SettingsScreen()),
                         ),
+                        icon: Icon(Icons.settings_outlined, color: AppColors.muted),
                       ),
                       const SizedBox(width: 4),
                       GestureDetector(
                         onTap: () => _showEditProfileDialog(context),
                         child: CircleAvatar(
                           radius: 22,
-                          backgroundColor: const Color(0xFFDCFCE7),
-                          child: Text(
-                            user.avatarEmoji,
-                            style: const TextStyle(fontSize: 20),
-                          ),
+                          backgroundColor: AppColors.greenSoft,
+                          backgroundImage: user.avatarImagePath != null
+                              ? FileImage(File(user.avatarImagePath!))
+                              : null,
+                          child: user.avatarImagePath == null
+                              ? Text(
+                                  user.avatarEmoji,
+                                  style: const TextStyle(fontSize: 20),
+                                )
+                              : null,
                         ),
                       ),
                     ],
@@ -437,10 +597,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: safeToday < 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                      color: safeToday < 0 ? AppColors.redSoft : AppColors.greenFaint,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: safeToday < 0 ? const Color(0xFFFECACA) : const Color(0xFFDCFCE7),
+                        color: safeToday < 0 ? AppColors.redBorder : AppColors.greenSoft,
                       ),
                     ),
                     child: Column(
@@ -457,12 +617,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: safeToday < 0 ? const Color(0xFFDC2626) : const Color(0xFF00C853),
                                 ),
                                 const SizedBox(width: 6),
-                                const Text(
+                                Text(
                                   'SAFE TO SPEND TODAY',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF64748B),
+                                    color: AppColors.muted,
                                     letterSpacing: 0.5,
                                   ),
                                 ),
@@ -470,9 +630,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             Text(
                               'Balance: ₱${balance.toStringAsFixed(0)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF64748B),
+                                color: AppColors.muted,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -486,14 +646,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
-                            color: safeToday < 0 ? const Color(0xFFDC2626) : const Color(0xFF1E293B),
+                            color: safeToday < 0 ? const Color(0xFFDC2626) : AppColors.text,
                           ),
                         ),
                         if (cycleCountdownText != null) ...[
                           const SizedBox(height: 6),
                           Text(
                             cycleCountdownText,
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            style: TextStyle(fontSize: 11, color: AppColors.muted),
                           ),
                         ],
                       ],
@@ -622,12 +782,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         '✨ QUICK ADD',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF64748B),
+                          color: AppColors.muted,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -673,20 +833,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
+                              color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFF86EFAC)),
+                              border: Border.all(color: AppColors.greenBorder),
                             ),
-                            child: const Row(
+                            child: Row(
                               children: [
-                                Icon(Icons.add, size: 14, color: Color(0xFF15803D)),
+                                Icon(Icons.add, size: 14, color: AppColors.greenDark),
                                 SizedBox(width: 4),
                                 Text(
                                   'Add Custom',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF15803D),
+                                    color: AppColors.greenDark,
                                   ),
                                 ),
                               ],
@@ -704,12 +864,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                          const Text(
+                          Text(
                             "Today's Expenses",
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
+                              color: AppColors.text,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -719,7 +879,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
+                              color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -752,9 +912,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       alignment: Alignment.center,
-                      child: const Text(
+                      child: Text(
                         'No expenses added today.',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        style: TextStyle(color: AppColors.greyText, fontSize: 12),
                       ),
                     )
                   else
@@ -769,9 +929,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: AppColors.card,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFF1F5F9)),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Column(
                       children: [
@@ -779,7 +939,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Row(
-                              children: const [
+                              children: [
                                 Icon(Icons.account_balance_wallet_outlined,
                                     size: 16, color: Color(0xFF00C853)),
                                 SizedBox(width: 6),
@@ -788,17 +948,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
-                                    color: Color(0xFF334155),
+                                    color: AppColors.text2,
                                   ),
                                 ),
                               ],
                             ),
                             Text(
                               '$percentageInt%',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
-                                color: Color(0xFF334155),
+                                color: AppColors.text2,
                               ),
                             ),
                           ],
@@ -809,7 +969,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: LinearProgressIndicator(
                             value: budgetPercentage.clamp(0.0, 1.0),
                             minHeight: 8,
-                            backgroundColor: const Color(0xFFE2E8F0),
+                            backgroundColor: AppColors.track,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               budgetPercentage > 0.9 ? Colors.redAccent : const Color(0xFF00C853),
                             ),
@@ -822,20 +982,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'SPENT',
                                   style: TextStyle(
                                     fontSize: 9,
-                                    color: Colors.grey,
+                                    color: AppColors.greyText,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 Text(
                                   '₱${totalSpent.toStringAsFixed(0)}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
-                                    color: Color(0xFF1E293B),
+                                    color: AppColors.text,
                                   ),
                                 ),
                               ],
@@ -843,11 +1003,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                const Text(
+                                Text(
                                   'LEFT',
                                   style: TextStyle(
                                     fontSize: 9,
-                                    color: Colors.grey,
+                                    color: AppColors.greyText,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -872,12 +1032,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
+                      color: AppColors.greenFaint,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFDCFCE7)),
+                      border: Border.all(color: AppColors.greenSoft),
                     ),
                     child: Column(
-                      children: const [
+                      children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -886,7 +1046,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               'Student Saving Tip',
                               style: TextStyle(
-                                color: Color(0xFF15803D),
+                                color: AppColors.greenDark,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -898,7 +1058,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           'Bringing a refillable water tumbler saves up to ₱40/day on bottled drinks—that\'s over ₱1,200 saved per month!',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Color(0xFF166534),
+                            color: AppColors.greenDeep,
                             fontSize: 11,
                             height: 1.3,
                           ),
@@ -955,9 +1115,9 @@ class _HomeScreenState extends State<HomeScreen> {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -965,25 +1125,25 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 6),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF334155),
+              color: AppColors.text2,
             ),
           ),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
+              color: AppColors.greenSoft,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '₱${amount.toStringAsFixed(0)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF15803D),
+                color: AppColors.greenDark,
               ),
             ),
           ),
@@ -998,19 +1158,19 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCFCE7),
+        color: AppColors.greenSoft,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF86EFAC)),
+        border: Border.all(color: AppColors.greenBorder),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.add_card, size: 16, color: Color(0xFF15803D)),
+            child: Icon(Icons.add_card, size: 16, color: AppColors.greenDark),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1019,26 +1179,26 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   income.note.isEmpty ? 'Income received' : income.note,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: Color(0xFF166534),
+                    color: AppColors.greenDeep,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   DateFormat('h:mm a').format(income.date),
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                  style: TextStyle(fontSize: 11, color: AppColors.greenDark),
                 ),
               ],
             ),
           ),
           Text(
             '+₱${income.amount.toStringAsFixed(2)}',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
-              color: Color(0xFF15803D),
+              color: AppColors.greenDark,
             ),
           ),
         ],
@@ -1051,16 +1211,16 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
+              color: AppColors.greenSoft,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(_getEmojiForExpense(item), style: const TextStyle(fontSize: 16)),
@@ -1072,19 +1232,19 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   item.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: Color(0xFF1E293B),
+                    color: AppColors.text,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${DateFormat('h:mm a').format(item.date)} • ${item.paymentMethod}'
                   '${item.fromSavings ? ' • From savings' : ''}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey,
+                    color: AppColors.greyText,
                   ),
                 ),
               ],
@@ -1092,10 +1252,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Text(
             '₱${item.amount.toStringAsFixed(2)}',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
-              color: Color(0xFF1E293B),
+              color: AppColors.text,
             ),
           ),
         ],

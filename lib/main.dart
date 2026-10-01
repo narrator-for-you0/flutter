@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/expense_provider.dart';
+import 'providers/theme_providers.dart';
 import 'providers/user_proverder.dart';
 import 'screens/add_expense_modal.dart';
 import 'screens/budget_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/setting_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/stats_screen.dart';
 import 'widgets/daily_limit_widgets.dart';
+import 'themes/app_colors.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,16 +41,62 @@ class MyApp extends StatelessWidget {
         // init() loads saved settings (budgets, daily limit, quick add) + expenses
         ChangeNotifierProvider(create: (_) => ExpenseProvider()..init()),
         ChangeNotifierProvider(create: (_) => UserProfileProvider()..load()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()..load()),
       ],
-      child: MaterialApp(
-        title: 'Food Allowance Tracker',
-        debugShowCheckedModeBanner: false,
-        scrollBehavior: AppScrollBehavior(),
-        theme: ThemeData(
-          primarySwatch: Colors.green,
-          scaffoldBackgroundColor: Colors.white,
-        ),
-        home: const MainNavigationScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp(
+            title: 'Food Allowance Tracker',
+            debugShowCheckedModeBanner: false,
+            scrollBehavior: AppScrollBehavior(),
+            theme: ThemeProvider.light,
+            darkTheme: ThemeProvider.dark,
+            themeMode: themeProvider.mode,
+            home: const AppGate(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Decides what to show at launch: a splash while the saved profile loads,
+/// onboarding on the very first run, otherwise the main app.
+class AppGate extends StatelessWidget {
+  const AppGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    AppColors.sync(context);
+    final profile = context.watch<UserProfileProvider>();
+    final theme = context.watch<ThemeProvider>();
+
+    final Widget child;
+    if (!profile.isLoaded || !theme.isLoaded) {
+      child = const _SplashScreen(key: ValueKey('splash'));
+    } else if (!profile.hasOnboarded) {
+      child = const OnboardingScreen(key: ValueKey('onboarding'));
+    } else {
+      child = const MainNavigationScreen(key: ValueKey('main'));
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: child,
+    );
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    AppColors.sync(context);
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: Center(
+        child: CircularProgressIndicator(color: Color(0xFF00C853)),
       ),
     );
   }
@@ -59,7 +109,8 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0; // default to the first screen (HomeScreen) 
 
   late final List<Widget> _screens = [
@@ -70,7 +121,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Coming back to the app (maybe the next day): log due recurring expenses
+  // and check whether a budget period just ended.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<ExpenseProvider>().onAppResumed();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -100,8 +173,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
+        backgroundColor: AppColors.bg,
         selectedItemColor: const Color(0xFF00C853),
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: AppColors.greyText,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),

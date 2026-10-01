@@ -7,6 +7,7 @@ import '../models/income.dart';
 import '../providers/expense_provider.dart';
 import '../screens/add_expense_modal.dart';
 import '../screens/add_income_modal.dart';
+import '../themes/app_colors.dart';
 
 const _weekdayShortNames = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
@@ -24,10 +25,10 @@ class SpendingCalendar extends StatefulWidget {
 
 class _SpendingCalendarState extends State<SpendingCalendar> {
   static const _primaryGreen = Color(0xFF00C853);
-  static const _dark = Color(0xFF1E293B);
-  static const _muted = Color(0xFF94A3B8);
+  static Color get _dark => AppColors.text;
+  static Color get _muted => AppColors.faint;
   static const _red = Color(0xFFDC2626);
-  static const _gold = Color(0xFFCA8A04);
+  static Color get _gold => AppColors.goldText;
 
   late DateTime _month; // first day of the visible month
   late DateTime _selected;
@@ -157,6 +158,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Consumer<ExpenseProvider>(
       builder: (context, provider, _) {
         final totals = provider.getDailyTotalsForMonth(_month, type: _typeFilter);
@@ -231,7 +233,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                   const SizedBox(height: 8),
                   _buildLegend(limit, runwayDate != null),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Swipe left or right to change month',
                     style: TextStyle(fontSize: 10, color: _muted),
                   ),
@@ -265,13 +267,13 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                   children: [
                     Text(
                       DateFormat('MMMM yyyy').format(_month),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: _dark,
                       ),
                     ),
-                    const Icon(Icons.arrow_drop_down, color: _muted),
+                    Icon(Icons.arrow_drop_down, color: _muted),
                   ],
                 ),
                 if (!isCurrentMonth)
@@ -302,10 +304,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: const Color(0xFF64748B)),
+        child: Icon(icon, color: AppColors.muted),
       ),
     );
   }
@@ -340,7 +342,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           bestDay == null
               ? '–'
               : DateFormat('MMM d').format(DateTime(_month.year, _month.month, bestDay.key)),
-          const Color(0xFF15803D),
+          AppColors.greenDark,
           subtitle: bestDay == null ? null : '₱${bestDay.value.toStringAsFixed(0)}',
         ),
       ],
@@ -352,7 +354,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -362,7 +364,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 8.5,
                 fontWeight: FontWeight.bold,
                 color: _muted,
@@ -380,7 +382,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               ),
             ),
             if (subtitle != null)
-              Text(subtitle, style: const TextStyle(fontSize: 10, color: _muted)),
+              Text(subtitle, style: TextStyle(fontSize: 10, color: _muted)),
           ],
         ),
       ),
@@ -403,11 +405,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           ? 'Same as ${DateFormat('MMMM').format(DateTime(_month.year, _month.month - 1))} so far'
           : '₱${diff.abs().toStringAsFixed(0)} ${isMore ? 'more' : 'less'} than '
               '${DateFormat('MMMM').format(DateTime(_month.year, _month.month - 1))}';
-      chips.add(_insightChip(Icons.trending_up, label, isMore ? _red : const Color(0xFF15803D)));
+      chips.add(_insightChip(Icons.trending_up, label, isMore ? _red : AppColors.greenDark));
     }
 
     if (streak >= 2) {
-      chips.add(_insightChip(Icons.local_fire_department, '$streak day streak under your limit', const Color(0xFFEA580C)));
+      chips.add(_insightChip(Icons.local_fire_department, '$streak day streak under your limit', AppColors.orangeAccent));
     }
 
     if (busiest != null && busiest.value > 0) {
@@ -448,14 +450,14 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: t.softColor.withValues(alpha: 0.5),
+              color: t.softBg.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
               children: [
                 Text('${t.emoji} ${t.name}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: t.color)),
                 const SizedBox(height: 2),
-                Text('₱${amount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _dark)),
+                Text('₱${amount.toStringAsFixed(0)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _dark)),
               ],
             ),
           ),
@@ -494,8 +496,8 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          chip('All', '📋', _dark, const Color(0xFFF1F5F9), null),
-          ...CategoryData.types.map((t) => chip(t.name, t.emoji, t.color, t.softColor, t)),
+          chip('All', '📋', _dark, AppColors.fill, null),
+          ...CategoryData.types.map((t) => chip(t.name, t.emoji, t.color, t.softBg, t)),
         ],
       ),
     );
@@ -510,7 +512,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               child: Center(
                 child: Text(
                   l,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: _muted,
@@ -518,7 +520,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 ),
               ),
             )),
-        const SizedBox(
+        SizedBox(
           width: 40,
           child: Center(
             child: Text(
@@ -576,7 +578,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               child: Text(
                 weekTotal > 0 ? _compact(weekTotal) : '–',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
               ),
             ),
           ],
@@ -606,18 +608,18 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
         _typeFilter == null &&
         date.isAfter(DateTime.now().subtract(Duration(days: provider.currentUnderLimitStreak)));
 
-    Color bg = showShortfall ? const Color(0xFFE2E8F0) : const Color(0xFFF8FAFC);
+    Color bg = showShortfall ? AppColors.track : AppColors.card;
     Color amountColor = _muted;
     if (amount > 0) {
       if (ratio > 1) {
-        bg = const Color(0xFFFEE2E2);
+        bg = AppColors.redSoft2;
         amountColor = _red;
       } else if (ratio >= 0.5) {
-        bg = const Color(0xFFFEF3C7);
-        amountColor = const Color(0xFFB45309);
+        bg = AppColors.amberSoft3;
+        amountColor = AppColors.amberText;
       } else {
-        bg = const Color(0xFFDCFCE7);
-        amountColor = const Color(0xFF15803D);
+        bg = AppColors.greenSoft;
+        amountColor = AppColors.greenDark;
       }
     }
 
@@ -638,7 +640,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: AppColors.tooltipBg,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
@@ -724,15 +726,15 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
     const headerStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white);
     const lineStyle = TextStyle(fontSize: 11.5, color: Colors.white, height: 1.5);
-    const incomeStyle = TextStyle(fontSize: 11.5, color: Color(0xFF86EFAC), height: 1.5);
-    const mutedStyle = TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), height: 1.5);
+    final incomeStyle = TextStyle(fontSize: 11.5, color: AppColors.greenBorder, height: 1.5);
+    final mutedStyle = TextStyle(fontSize: 11.5, color: AppColors.faint, height: 1.5);
 
     final children = <InlineSpan>[
       TextSpan(text: DateFormat('EEEE, MMM d').format(date), style: headerStyle),
     ];
 
     if (items.isEmpty && incomeItems.isEmpty) {
-      children.add(const TextSpan(text: '\nNo activity logged', style: mutedStyle));
+      children.add(TextSpan(text: '\nNo activity logged', style: mutedStyle));
     } else {
       const maxLines = 5;
       for (final e in items.take(maxLines)) {
@@ -778,7 +780,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
             ),
             const SizedBox(width: 4),
-            Text(text, style: const TextStyle(fontSize: 10, color: _muted)),
+            Text(text, style: TextStyle(fontSize: 10, color: _muted)),
           ],
         );
 
@@ -787,10 +789,10 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       spacing: 12,
       runSpacing: 4,
       children: [
-        dot(const Color(0xFFDCFCE7), 'Under 50% of limit'),
-        dot(const Color(0xFFFEF3C7), '50–100%'),
-        dot(const Color(0xFFFEE2E2), 'Over ₱${limit.toStringAsFixed(0)}'),
-        if (showRunway) dot(const Color(0xFFE2E8F0), 'Projected shortfall'),
+        dot(AppColors.greenSoft, 'Under 50% of limit'),
+        dot(AppColors.amberSoft3, '50–100%'),
+        dot(AppColors.redSoft2, 'Over ₱${limit.toStringAsFixed(0)}'),
+        if (showRunway) dot(AppColors.track, 'Projected shortfall'),
       ],
     );
   }
@@ -821,7 +823,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               Expanded(
                 child: Text(
                   DateFormat('EEEE, MMMM d').format(_selected),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: _dark,
@@ -849,7 +851,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           ),
           if (incomeItems.isNotEmpty) ...[
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Tap income to edit • Swipe left to delete',
               style: TextStyle(fontSize: 10, color: _muted),
             ),
@@ -861,7 +863,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: isOver ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7),
+                color: isOver ? AppColors.redSoft2 : AppColors.greenSoft,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -871,7 +873,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isOver ? _red : const Color(0xFF15803D),
+                  color: isOver ? _red : AppColors.greenDark,
                 ),
               ),
             ),
@@ -892,11 +894,11 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 allItems.isEmpty ? 'No expenses on this day.' : 'No ${_typeFilter!.name} expenses on this day.',
-                style: const TextStyle(fontSize: 12, color: _muted),
+                style: TextStyle(fontSize: 12, color: _muted),
               ),
             )
           else ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 10),
               child: Text(
                 'Tap to edit • Swipe left to delete',
@@ -937,14 +939,14 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _openAddIncome,
-                  icon: const Icon(Icons.add, size: 18, color: Color(0xFF2563EB)),
-                  label: const Flexible(
+                  icon: Icon(Icons.add, size: 18, color: AppColors.blue),
+                  label: Flexible(
                     child: Text(
                       'Income',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Color(0xFF2563EB),
+                        color: AppColors.blue,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -952,7 +954,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    side: BorderSide(color: AppColors.blue),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -985,24 +987,24 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           secondaryBackground: deleteBackground(),
           onDismissed: (_) => _deleteIncome(income),
           child: Material(
-            color: const Color(0xFFEFF6FF),
+            color: AppColors.blueSoft,
             child: InkWell(
               onTap: () => _openEditIncome(income),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.add_circle, size: 16, color: Color(0xFF2563EB)),
+                    Icon(Icons.add_circle, size: 16, color: AppColors.blue),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         income.note.isEmpty ? 'Income' : income.note,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _dark),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _dark),
                       ),
                     ),
                     Text(
                       '+₱${income.amount.toStringAsFixed(0)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.blue),
                     ),
                   ],
                 ),
@@ -1049,7 +1051,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
               children: [
                 Container(width: 8, height: 8, decoration: BoxDecoration(color: t.color, shape: BoxShape.circle)),
                 const SizedBox(width: 4),
-                Text('${t.name} ₱${amount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 10, color: _muted)),
+                Text('${t.name} ₱${amount.toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: _muted)),
               ],
             );
           }).toList(),
@@ -1079,7 +1081,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           secondaryBackground: deleteBackground(),
           onDismissed: (_) => _delete(e),
           child: Material(
-            color: Colors.white,
+            color: AppColors.surface,
             child: InkWell(
               onTap: () => _openEdit(e),
               child: Padding(
@@ -1091,7 +1093,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                       height: 38,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: type.softColor,
+                        color: type.softBg,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(CategoryData.emojiFor(e.category), style: const TextStyle(fontSize: 17)),
@@ -1103,7 +1105,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                         children: [
                           Text(
                             e.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                               color: _dark,
@@ -1113,14 +1115,14 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
                           Text(
                             '${e.category} • ${DateFormat('h:mm a').format(e.date)} • ${e.paymentMethod}'
                             '${e.fromSavings ? ' • From savings' : ''}',
-                            style: const TextStyle(fontSize: 11, color: _muted),
+                            style: TextStyle(fontSize: 11, color: _muted),
                           ),
                         ],
                       ),
                     ),
                     Text(
                       '₱${e.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: _dark,
@@ -1138,7 +1140,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(

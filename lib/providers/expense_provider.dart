@@ -6,8 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/expense.dart';
 import '../models/income.dart';
 import '../models/expense_category.dart';
+import '../models/recurring_expense.dart';
 import '../services/database_helper.dart';
-import '../services/reminder_service.dart';
+import '../services/reminder_services.dart';
 
 /// How often the allowance/budget period repeats. `monthly` keeps today's
 /// behavior (a calendar month); `weekly`/`biweekly` are rolling windows
@@ -55,11 +56,15 @@ class LimitCheck {
   final double dayTotal; // that day's total AFTER this expense
   final bool wasOver; // day was already over the limit BEFORE this expense
 
+  /// Category limits this expense pushed over (empty most of the time).
+  final List<CategoryLimitHit> categoryHits;
+
   const LimitCheck({
     required this.day,
     required this.limit,
     required this.dayTotal,
     required this.wasOver,
+    this.categoryHits = const [],
   });
 
   bool get isOver => dayTotal > limit;
@@ -68,6 +73,51 @@ class LimitCheck {
   bool get crossed => isOver && !wasOver;
 
   double get overBy => isOver ? dayTotal - limit : 0.0;
+}
+
+/// Category limits are stored under these keys. The prefix keeps a type
+/// ('Other') apart from a subcategory that happens to share its name.
+String typeBudgetKey(String typeName) => 'type:$typeName';
+String subBudgetKey(String label) => 'sub:$label';
+
+/// A category limit that a just-saved expense pushed over.
+class CategoryLimitHit {
+  final String label; // 'Food' or 'Coffee'
+  final String emoji;
+  final double limit;
+  final double total; // the category's total for the period, after the expense
+
+  const CategoryLimitHit({
+    required this.label,
+    required this.emoji,
+    required this.limit,
+    required this.total,
+  });
+
+  double get overBy => total - limit;
+}
+
+/// One category limit and how much of it is used this period (for the Budget tab).
+class CategoryBudgetStatus {
+  final String key;
+  final String label;
+  final String emoji;
+  final Color color;
+  final double limit;
+  final double spent;
+
+  const CategoryBudgetStatus({
+    required this.key,
+    required this.label,
+    required this.emoji,
+    required this.color,
+    required this.limit,
+    required this.spent,
+  });
+
+  double get ratio => limit > 0 ? spent / limit : 0.0;
+  bool get isOver => spent > limit;
+  double get remaining => limit - spent;
 }
 
 /// One finished allowance cycle and what was left of it.
@@ -122,6 +172,18 @@ class ExpenseProvider with ChangeNotifier {
   bool _initialLoadDone = false;
   bool _launchBannerArmed = false;
   bool _launchBannerDismissed = false;
+
+  // Category limits per period, keyed by typeBudgetKey()/subBudgetKey().
+  final Map<String, double> _categoryBudgets = {};
+
+  // Recurring expenses (auto-logged on a schedule).
+  List<RecurringExpense> _recurring = [];
+  bool _generatingRecurring = false;
+
+  // End-of-period summary: start date ('yyyy-MM-dd') of the last finished
+  // period we already told the person about.
+  bool _cycleSummaryEnabled = true;
+  String? _lastSummaryCycle;
 
   String _monthKey(DateTime date) => DateFormat('yyyy-MM').format(date);
 
@@ -439,7 +501,11 @@ class ExpenseProvider with ChangeNotifier {
         .fold(0.0, (sum, item) => sum + item.amount);
   }
 
-  double get totalSpent => totalSpentForMonth(DateTime.now());
+  /// Spent in the CURRENT budget cycle (month, week or two weeks, whichever
+  /// the person chose). Pairs with [monthlyBudget], which is also per-cycle;
+  /// the old calendar-month total made Home disagree with the Budget tab on
+  /// weekly/biweekly cycles.
+  double get totalSpent => totalSpentForCycle(DateTime.now());
 
   double get remainingBudget {
     final remaining = monthlyBudget - totalSpent;
@@ -516,6 +582,338 @@ class ExpenseProvider with ChangeNotifier {
   void dismissLimitBanner() {
     _launchBannerDismissed = true;
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Category budgets (caps per major type or subcategory, per period)
+  // ---------------------------------------------------------------------------
+  Map<String, double> get categoryBudgets => Map.unmodifiable(_categoryBudgets);
+
+  double? categoryLimitFor(String key) => _categoryBudgets[key];
+
+  /// Save several limits at once. A null or zero value removes that limit.
+  void setCategoryBudgets(Map<String, double?> values) {
+    values.forEach((key, value) {
+      if (value == null || value <= 0) {
+        _categoryBudgets.remove(key);
+      } else {
+        _categoryBudgets[key] = value;
+      }
+    });
+    notifyListeners();
+    _saveSettings();
+  }
+
+  bool _matchesBudgetKey(Expense e, String key) {
+    if (key.startsWith('type:')) return e.type == key.substring(5);
+    if (key.startsWith('sub:')) return e.category == key.substring(4);
+    return false;
+  }
+
+  /// Spent on one category within the cycle [day] falls in (savings-funded
+  /// expenses don't count, same as the overall budget).
+  double categorySpentForCycle(String key, DateTime day) {
+    final start = currentCycleStart(day);
+    final endExclusive = currentCycleEnd(day).add(const Duration(days: 1));
+    return _expenses
+        .where((e) =>
+            !e.fromSavings &&
+            _matchesBudgetKey(e, key) &&
+            !e.date.isBefore(start) &&
+            e.date.isBefore(endExclusive))
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  /// Every limit that is set, with this period's spending, most-used first.
+  List<CategoryBudgetStatus> categoryBudgetStatuses(DateTime day) {
+    final out = <CategoryBudgetStatus>[];
+    for (final t in CategoryData.types) {
+      final typeKey = typeBudgetKey(t.name);
+      final typeLimit = _categoryBudgets[typeKey];
+      if (typeLimit != null) {
+        out.add(CategoryBudgetStatus(
+          key: typeKey,
+          label: t.name,
+          emoji: t.emoji,
+          color: t.color,
+          limit: typeLimit,
+          spent: categorySpentForCycle(typeKey, day),
+        ));
+      }
+      for (final s in t.subCategories) {
+        final subKey = subBudgetKey(s.label);
+        final subLimit = _categoryBudgets[subKey];
+        if (subLimit != null) {
+          out.add(CategoryBudgetStatus(
+            key: subKey,
+            label: s.label,
+            emoji: s.emoji,
+            color: s.color,
+            limit: subLimit,
+            spent: categorySpentForCycle(subKey, day),
+          ));
+        }
+      }
+    }
+    out.sort((a, b) => b.ratio.compareTo(a.ratio));
+    return out;
+  }
+
+  /// Limits that saving [e] pushes over (it must be the expense that CROSSES
+  /// the line, not one that was already over). Call BEFORE [e] is added to
+  /// the list; pass [original] when editing so it isn't counted twice.
+  List<CategoryLimitHit> _categoryHits(Expense e, {Expense? original}) {
+    if (e.fromSavings || _categoryBudgets.isEmpty) return const [];
+
+    final start = currentCycleStart(e.date);
+    final endExclusive = currentCycleEnd(e.date).add(const Duration(days: 1));
+    bool inCycle(Expense x) => !x.date.isBefore(start) && x.date.isBefore(endExclusive);
+    bool isOriginal(Expense x) =>
+        original != null &&
+        (identical(x, original) || (original.id != null && x.id == original.id));
+
+    final hits = <CategoryLimitHit>[];
+    final candidates = [
+      (typeBudgetKey(e.type), CategoryData.typeByName(e.type).name, CategoryData.typeByName(e.type).emoji),
+      (subBudgetKey(e.category), e.category, CategoryData.emojiFor(e.category)),
+    ];
+    for (final (key, label, emoji) in candidates) {
+      final cap = _categoryBudgets[key];
+      if (cap == null) continue;
+
+      final others = _expenses
+          .where((x) =>
+              !x.fromSavings && !isOriginal(x) && inCycle(x) && _matchesBudgetKey(x, key))
+          .fold(0.0, (sum, x) => sum + x.amount);
+      final after = others + e.amount;
+
+      var before = others;
+      if (original != null &&
+          !original.fromSavings &&
+          inCycle(original) &&
+          _matchesBudgetKey(original, key)) {
+        before += original.amount;
+      }
+
+      if (after > cap && before <= cap) {
+        hits.add(CategoryLimitHit(label: label, emoji: emoji, limit: cap, total: after));
+      }
+    }
+    return hits;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recurring expenses
+  // ---------------------------------------------------------------------------
+  List<RecurringExpense> get recurringExpenses => _recurring;
+
+  Future<void> fetchRecurring() async {
+    try {
+      _recurring = await DatabaseHelper.instance.getAllRecurring();
+    } catch (e) {
+      debugPrint('Could not load recurring expenses: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Saves a new recurring expense and logs anything already due (a start
+  /// date in the past is filled in right away). Returns how many expenses
+  /// were logged, or null if it couldn't be saved.
+  Future<int?> addRecurring(RecurringExpense r) async {
+    try {
+      final id = await DatabaseHelper.instance.insertRecurring(r);
+      _recurring.add(r.copyWith(id: id));
+    } catch (e) {
+      debugPrint('Could not save recurring expense: $e');
+      return null;
+    }
+    notifyListeners();
+    return generateDueRecurring();
+  }
+
+  /// Edits a recurring expense (matched by id). Returns how many expenses
+  /// were logged as a result, or null if it couldn't be saved.
+  Future<int?> updateRecurring(RecurringExpense r) async {
+    if (r.id == null) return null;
+    try {
+      await DatabaseHelper.instance.updateRecurring(r);
+    } catch (e) {
+      debugPrint('Could not update recurring expense: $e');
+      return null;
+    }
+    final i = _recurring.indexWhere((x) => x.id == r.id);
+    if (i != -1) {
+      _recurring[i] = r;
+    } else {
+      _recurring.add(r);
+    }
+    notifyListeners();
+    return generateDueRecurring();
+  }
+
+  /// Pause or resume. Resuming does NOT back-fill the paused stretch: it
+  /// picks up from the next occurrence.
+  Future<void> setRecurringActive(RecurringExpense r, bool active) async {
+    var updated = r.copyWith(active: active);
+    if (active) {
+      final skipped = r.dueOccurrences(DateTime.now());
+      if (skipped.isNotEmpty) updated = updated.copyWith(lastGenerated: skipped.last);
+    }
+    await updateRecurring(updated);
+  }
+
+  /// Delete a recurring expense. Expenses it already logged stay in your
+  /// history. Keep the object to hand it to [restoreRecurring] for undo.
+  Future<void> deleteRecurring(RecurringExpense r) async {
+    _recurring.removeWhere((x) => x.id == r.id);
+    notifyListeners();
+    if (r.id != null) {
+      try {
+        await DatabaseHelper.instance.deleteRecurring(r.id!);
+      } catch (e) {
+        debugPrint('Could not delete recurring expense: $e');
+      }
+    }
+  }
+
+  Future<void> restoreRecurring(RecurringExpense r) async {
+    if (_recurring.any((x) => x.id == r.id)) return;
+    try {
+      await DatabaseHelper.instance.insertRecurring(r);
+      _recurring.add(r);
+      _recurring.sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
+    } catch (e) {
+      debugPrint('Could not restore recurring expense: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Logs every occurrence that is due (on or before today) and hasn't been
+  /// logged yet, dated on the day it was due, so a week of not opening the
+  /// app still leaves an accurate history. Safe to call repeatedly. Returns
+  /// how many expenses were created.
+  Future<int> generateDueRecurring() async {
+    if (_generatingRecurring) return 0;
+    _generatingRecurring = true;
+    var created = 0;
+    try {
+      final now = DateTime.now();
+      for (final r in List<RecurringExpense>.of(_recurring)) {
+        final rid = r.id;
+        if (!r.active || rid == null) continue;
+
+        final due = r.dueOccurrences(now);
+        if (due.isEmpty) continue;
+
+        for (final day in due) {
+          // Belt and braces: never log the same rule twice for one day.
+          final already = _expenses
+              .any((x) => x.recurringId == rid && DateUtils.isSameDay(x.date, day));
+          if (already) continue;
+
+          final expense = Expense(
+            title: r.title,
+            amount: r.amount,
+            category: r.category,
+            date: day,
+            paymentMethod: r.paymentMethod,
+            recurringId: rid,
+          );
+          try {
+            final id = await DatabaseHelper.instance.insertExpense(expense);
+            _expenses.add(expense.copyWith(id: id));
+          } catch (e) {
+            debugPrint('Saving recurring expense in memory: $e');
+            _expenses.add(expense);
+          }
+          created++;
+        }
+
+        final updated = r.copyWith(lastGenerated: due.last);
+        final i = _recurring.indexWhere((x) => x.id == rid);
+        if (i != -1) _recurring[i] = updated;
+        try {
+          await DatabaseHelper.instance.updateRecurring(updated);
+        } catch (e) {
+          debugPrint('Could not update recurring progress: $e');
+        }
+      }
+    } finally {
+      _generatingRecurring = false;
+    }
+
+    if (created > 0) {
+      _expenses.sort((a, b) => b.date.compareTo(a.date));
+      notifyListeners();
+      _syncReminder();
+    }
+    return created;
+  }
+
+  // ---------------------------------------------------------------------------
+  // End-of-period summary notification
+  // ---------------------------------------------------------------------------
+  bool get cycleSummaryEnabled => _cycleSummaryEnabled;
+
+  /// Returns false when the person refused the notification permission (the
+  /// summary stays off).
+  Future<bool> setCycleSummaryEnabled(bool enabled) async {
+    var allowed = true;
+    if (enabled) allowed = await ReminderService.instance.requestPermission();
+    _cycleSummaryEnabled = enabled && allowed;
+    notifyListeners();
+    _saveSettings();
+    return allowed;
+  }
+
+  String _cycleLabel(SavingsCycle c) {
+    if (_cycleType == AllowanceCycleType.monthly) {
+      return DateFormat('MMMM yyyy').format(c.start);
+    }
+    return '${DateFormat('MMM d').format(c.start)} – ${DateFormat('MMM d').format(c.end)}';
+  }
+
+  /// Notices when a budget period has finished since the last time we told
+  /// the person, and sends one summary notification for it. Runs at launch
+  /// and when the app returns to the foreground.
+  Future<void> _checkCycleRollover() async {
+    final now = DateTime.now();
+    final thisStart = currentCycleStart(now);
+    final prevDay = DateTime(thisStart.year, thisStart.month, thisStart.day - 1);
+    final prevStart = currentCycleStart(prevDay);
+    final marker = DateFormat('yyyy-MM-dd').format(prevStart);
+    if (_lastSummaryCycle == marker) return;
+
+    SavingsCycle? finished;
+    for (final c in savingsHistory()) {
+      if (DateUtils.isSameDay(c.start, prevStart)) finished = c;
+    }
+
+    // Remember it either way so we never announce the same period twice
+    // (and never announce periods from before tracking began).
+    _lastSummaryCycle = marker;
+    _saveSettings();
+    if (finished == null || !_cycleSummaryEnabled) return;
+
+    final label = _cycleLabel(finished);
+    final String title;
+    final String body;
+    if (finished.leftover > 0) {
+      title = 'Period complete 🎉';
+      body = '$label ended: you saved ₱${finished.leftover.toStringAsFixed(0)}. '
+          "It's now in your savings.";
+    } else if (finished.leftover < 0) {
+      title = 'Period complete';
+      body = '$label ended ₱${finished.leftover.abs().toStringAsFixed(0)} over budget. '
+          'The shortfall carries into this period.';
+    } else {
+      title = 'Period complete';
+      body = '$label ended right on budget.';
+    }
+
+    // First summary is a natural moment to ask for notification permission.
+    await ReminderService.instance.requestPermission();
+    await ReminderService.instance.showCycleSummary(title: title, body: body);
   }
 
   // ---------------------------------------------------------------------------
@@ -676,6 +1074,24 @@ class ExpenseProvider with ChangeNotifier {
     notifyListeners();
     await fetchExpenses();
     await fetchIncome();
+    await fetchRecurring();
+    final created = await generateDueRecurring();
+    // The "opened already over the limit" banner was decided before the
+    // recurring expenses were logged, so decide again if any were added.
+    if (created > 0 && !_launchBannerDismissed) {
+      _launchBannerArmed = isOverDailyLimitToday;
+      notifyListeners();
+    }
+    await _checkCycleRollover();
+    _syncReminder();
+  }
+
+  /// Call when the app returns to the foreground: a phone left open overnight
+  /// should still log today's recurring expenses and notice a new period.
+  Future<void> onAppResumed() async {
+    if (!_initialLoadDone) return;
+    await generateDueRecurring();
+    await _checkCycleRollover();
     _syncReminder();
   }
 
@@ -708,6 +1124,13 @@ class ExpenseProvider with ChangeNotifier {
       final freshStr = data['carryoverFreshFrom'] as String?;
       _carryoverFreshFrom = freshStr != null ? DateTime.tryParse(freshStr) : null;
 
+      final catBudgets = (data['categoryBudgets'] as Map<String, dynamic>?) ?? {};
+      _categoryBudgets
+        ..clear()
+        ..addAll(catBudgets.map((k, v) => MapEntry(k, (v as num).toDouble())));
+      _lastSummaryCycle = data['lastSummaryCycle'] as String?;
+      _cycleSummaryEnabled = data['cycleSummaryEnabled'] as bool? ?? true;
+
       _reminderEnabled = data['reminderEnabled'] as bool? ?? false;
       final reminderMinutes = data['reminderMinutes'] as int?;
       if (reminderMinutes != null) {
@@ -737,6 +1160,9 @@ class ExpenseProvider with ChangeNotifier {
           'cycleType': _cycleType.name,
           'cycleAnchor': _cycleAnchor.toIso8601String(),
           'carryoverFreshFrom': _carryoverFreshFrom?.toIso8601String(),
+          'categoryBudgets': _categoryBudgets,
+          'lastSummaryCycle': _lastSummaryCycle,
+          'cycleSummaryEnabled': _cycleSummaryEnabled,
           'reminderEnabled': _reminderEnabled,
           'reminderMinutes': _reminderTime.hour * 60 + _reminderTime.minute,
         }),
@@ -931,19 +1357,11 @@ class ExpenseProvider with ChangeNotifier {
   Future<LimitCheck> addExpense(Expense expense) async {
     final limit = dailyLimitFor(expense.date);
     final before = totalSpentOn(expense.date);
+    final hits = _categoryHits(expense);
 
     try {
       final id = await DatabaseHelper.instance.insertExpense(expense);
-      final savedExpense = Expense(
-        id: id,
-        title: expense.title,
-        amount: expense.amount,
-        category: expense.category,
-        date: expense.date,
-        paymentMethod: expense.paymentMethod,
-        fromSavings: expense.fromSavings,
-      );
-      _expenses.insert(0, savedExpense);
+      _expenses.insert(0, expense.copyWith(id: id));
     } catch (e) {
       debugPrint('Saving locally in memory: $e');
       _expenses.insert(0, expense);
@@ -957,6 +1375,7 @@ class ExpenseProvider with ChangeNotifier {
       // Paid-from-savings expenses never count toward the day's limit.
       dayTotal: before + (expense.fromSavings ? 0.0 : expense.amount),
       wasOver: before > limit,
+      categoryHits: hits,
     );
   }
 
@@ -970,7 +1389,12 @@ class ExpenseProvider with ChangeNotifier {
   /// Edit an expense. Returns a LimitCheck (like addExpense) so the UI can
   /// show the "daily limit exceeded" pop-up if the edit pushed the day over.
   Future<LimitCheck> updateExpense(Expense original, Expense updated) async {
+    // Editing an auto-logged expense keeps its link to the recurring entry.
+    if (updated.recurringId == null && original.recurringId != null) {
+      updated = updated.copyWith(recurringId: original.recurringId);
+    }
     final limit = dailyLimitFor(updated.date);
+    final hits = _categoryHits(updated, original: original);
     final i = _indexOf(original);
 
     // Everything else logged on the (new) day, without the original.
@@ -1007,6 +1431,7 @@ class ExpenseProvider with ChangeNotifier {
       limit: limit,
       dayTotal: others + (updated.fromSavings ? 0.0 : updated.amount),
       wasOver: totalBefore > limit,
+      categoryHits: hits,
     );
   }
 

@@ -5,6 +5,7 @@ import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../models/income.dart';
+import '../themes/app_colors.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -20,10 +21,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // Theme Colors
   static const primaryGreen = Color(0xFF00C853);
-  static const darkTextColor = Color(0xFF1E293B);
-  static const labelColor = Color(0xFF64748B);
-  static const lightBgColor = Color(0xFFF8FAFC);
-  static const cardBorderColor = Color(0xFFF1F5F9);
+  static Color get darkTextColor => AppColors.text;
+  static Color get labelColor => AppColors.muted;
+  static Color get lightBgColor => AppColors.card;
+  static Color get cardBorderColor => AppColors.border;
 
   // Type-chip label for money coming in (not a real expense type)
   static const _incomeChip = 'Income';
@@ -35,6 +36,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     final expenseProvider = Provider.of<ExpenseProvider>(context);
     final allExpenses = expenseProvider.expenses;
     final allIncome = expenseProvider.income;
@@ -76,7 +78,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ..sort((a, b) => b.compareTo(a)); // Newest first
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,7 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
                     'History',
                     style: TextStyle(
@@ -124,12 +126,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.search, color: labelColor, size: 20),
+                          Icon(Icons.search, color: labelColor, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
                               onChanged: (val) => setState(() => _searchQuery = val),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Search (e.g., Pizza, Jeepney, Allowance)',
                                 hintStyle: TextStyle(color: labelColor, fontSize: 13),
                                 border: InputBorder.none,
@@ -148,7 +150,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       color: lightBgColor,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.tune, color: labelColor, size: 20),
+                    child: Icon(Icons.tune, color: labelColor, size: 20),
                   ),
                 ],
               ),
@@ -199,7 +201,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             // Expense Cards Grouped by Date
             Expanded(
               child: sortedDates.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'Nothing found',
                         style: TextStyle(color: labelColor),
@@ -325,7 +327,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(width: 8),
                     Text(
                       formattedHeader,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: darkTextColor,
@@ -336,12 +338,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     '${items.length} items',
-                    style: const TextStyle(fontSize: 12, color: labelColor),
+                    style: TextStyle(fontSize: 12, color: labelColor),
                   ),
                 ),
               ],
@@ -350,7 +352,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
           // Items Container
           Container(
-            color: Colors.white,
+            color: AppColors.surface,
             child: Column(
               children: items.map((entry) {
                 if (entry is Expense) return _buildExpenseRow(entry);
@@ -362,8 +364,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           // Daily footer: total spent and/or total received that day
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF0FDF4), // Soft green tint
+            decoration: BoxDecoration(
+              color: AppColors.greenFaint, // Soft green tint
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
             child: Column(
@@ -416,11 +418,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: AppColors.greenSoft,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.add_card, size: 20, color: Color(0xFF15803D)),
+                child: Icon(Icons.add_card, size: 20, color: AppColors.greenDark),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -429,7 +431,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   children: [
                     Text(
                       _incomeLabel(income),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: darkTextColor,
@@ -438,7 +440,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           'Income',
                           style: TextStyle(fontSize: 12, color: labelColor),
                         ),
@@ -446,14 +448,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
+                            color: AppColors.greenSoft,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Received',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Color(0xFF15803D),
+                              color: AppColors.greenDark,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -465,16 +467,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
               Text(
                 '+₱${income.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF15803D),
+                  color: AppColors.greenDark,
                 ),
               ),
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: cardBorderColor),
+        Divider(height: 1, thickness: 1, color: cardBorderColor),
       ],
     );
   }
@@ -482,7 +484,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildExpenseRow(Expense expense) {
     // Icon & colour come from the expense's type / subcategory
     final iconEmoji = CategoryData.emojiFor(expense.category);
-    final iconBg = CategoryData.typeOfCategory(expense.category).softColor;
+    final iconBg = CategoryData.typeOfCategory(expense.category).softBg;
 
     return Column(
       children: [
@@ -510,7 +512,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   children: [
                     Text(
                       expense.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: darkTextColor,
@@ -521,7 +523,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         Text(
                           '${expense.category}  •  ${DateFormat('hh:mm a').format(expense.date)}',
-                          style: const TextStyle(fontSize: 12, color: labelColor),
+                          style: TextStyle(fontSize: 12, color: labelColor),
                         ),
                         const SizedBox(width: 6),
                         // Payment Badge
@@ -533,7 +535,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                           child: Text(
                             expense.paymentMethod,
-                            style: const TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
+                            style: TextStyle(fontSize: 10, color: labelColor, fontWeight: FontWeight.w500),
                           ),
                         ),
                         if (expense.fromSavings) ...[
@@ -541,14 +543,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
+                              color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Savings',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: Color(0xFF15803D),
+                                color: AppColors.greenDark,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -563,7 +565,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               // Price
               Text(
                 '₱${expense.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: darkTextColor,
@@ -572,7 +574,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: cardBorderColor),
+        Divider(height: 1, thickness: 1, color: cardBorderColor),
       ],
     );
   }

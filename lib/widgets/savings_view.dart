@@ -5,6 +5,7 @@ import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../providers/expense_provider.dart';
 import '../screens/add_expense_modal.dart';
+import '../themes/app_colors.dart';
 
 /// Unspent money from finished periods, and what you've spent out of it.
 /// Shown under the "Savings" side of the Budget tab's switch.
@@ -12,11 +13,11 @@ class SavingsView extends StatelessWidget {
   const SavingsView({super.key});
 
   static const _green = Color(0xFF00C853);
-  static const _greenDark = Color(0xFF15803D);
-  static const _dark = Color(0xFF1E293B);
-  static const _muted = Color(0xFF64748B);
+  static Color get _greenDark => AppColors.greenDark;
+  static Color get _dark => AppColors.text;
+  static Color get _muted => AppColors.muted;
   static const _red = Color(0xFFDC2626);
-  static const _blue = Color(0xFF2563EB);
+  static Color get _blue => AppColors.blue;
 
   String _periodLabel(AllowanceCycleType type, SavingsCycle c) {
     if (type == AllowanceCycleType.monthly) {
@@ -27,6 +28,7 @@ class SavingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Consumer<ExpenseProvider>(
       builder: (context, provider, _) {
         final canTrack = provider.canTrackSavings;
@@ -86,14 +88,14 @@ class SavingsView extends StatelessWidget {
             if (withdrawals.isNotEmpty) ...[
               _sectionLabel('SPENT FROM SAVINGS'),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Tap one to edit it',
                 style: TextStyle(fontSize: 10, color: _muted),
               ),
               const SizedBox(height: 8),
               ...withdrawals.map((e) => _withdrawalRow(context, e)),
             ] else if (balance > 0) ...[
-              const Text(
+              Text(
                 'Turn on "Pay from savings" when you add an expense, or use the '
                 'button above. Those expenses won\'t count against your budget or '
                 'daily limit.',
@@ -192,7 +194,7 @@ class SavingsView extends StatelessWidget {
   Widget _sectionLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
         color: _muted,
@@ -207,19 +209,19 @@ class SavingsView extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _dark),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _dark),
           ),
           const SizedBox(height: 4),
-          Text(body, style: const TextStyle(fontSize: 12, color: _muted, height: 1.4)),
+          Text(body, style: TextStyle(fontSize: 12, color: _muted, height: 1.4)),
         ],
       ),
     );
@@ -243,7 +245,7 @@ class SavingsView extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -251,7 +253,7 @@ class SavingsView extends StatelessWidget {
           Expanded(
             child: Text(
               _periodLabel(type, c),
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _dark),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _dark),
             ),
           ),
           Text(
@@ -268,7 +270,7 @@ class SavingsView extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: const Color(0xFFEFF6FF),
+        color: AppColors.blueSoft,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -282,7 +284,7 @@ class SavingsView extends StatelessWidget {
                   height: 34,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: type.softColor,
+                    color: type.softBg,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -297,7 +299,7 @@ class SavingsView extends StatelessWidget {
                     children: [
                       Text(
                         e.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: _dark,
@@ -306,14 +308,14 @@ class SavingsView extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         '${DateFormat('MMM d').format(e.date)} • ${e.category}',
-                        style: const TextStyle(fontSize: 11, color: _muted),
+                        style: TextStyle(fontSize: 11, color: _muted),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   '−₱${e.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: _blue,

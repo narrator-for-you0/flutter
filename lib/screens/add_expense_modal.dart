@@ -5,6 +5,7 @@ import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/expense_category.dart';
 import '../widgets/daily_limit_widgets.dart';
+import '../themes/app_colors.dart';
 
 class AddExpenseModal extends StatefulWidget {
   /// Pre-fill the date (e.g. from the calendar's "+ Add for Sep 20").
@@ -64,10 +65,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
 
   // Color Palette
   static const primaryGreen = Color(0xFF00C853);
-  static const inputBgColor = Color(0xFFF8FAFC);
-  static const chipBgColor = Color(0xFFF1F5F9);
-  static const labelColor = Color(0xFF94A3B8);
-  static const textColor = Color(0xFF1E293B);
+  static Color get inputBgColor => AppColors.card;
+  static Color get chipBgColor => AppColors.fill;
+  static Color get labelColor => AppColors.faint;
+  static Color get textColor => AppColors.text;
 
   final List<String> quickFoodSuggestions = [
     'Softdrinks',
@@ -157,7 +158,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
               margin: const EdgeInsets.only(right: 6),
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? t.softColor : inputBgColor,
+                color: isSelected ? t.softBg : inputBgColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected ? t.color : Colors.transparent,
@@ -312,9 +313,10 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
@@ -333,19 +335,19 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: textColor),
+                  icon: Icon(Icons.arrow_back, color: textColor),
                   onPressed: () => Navigator.pop(context),
                 ),
                 Text(
                   _isEditing ? 'Edit Expense' : 'Add Expense',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: textColor,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: labelColor),
+                  icon: Icon(Icons.close, color: labelColor),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -363,9 +365,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
               controller: _foodNameController,
               decoration: InputDecoration(
                 hintText: _nameHint,
-                hintStyle: const TextStyle(color: labelColor, fontSize: 13),
+                hintStyle: TextStyle(color: labelColor, fontSize: 13),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.surface,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -398,7 +400,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                     ),
                     child: Text(
                       item,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: labelColor,
                         fontWeight: FontWeight.w500,
@@ -415,12 +417,12 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             TextField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
               decoration: InputDecoration(
                 prefixText: '₱ ',
-                prefixStyle: const TextStyle(fontSize: 18, color: labelColor, fontWeight: FontWeight.bold),
+                prefixStyle: TextStyle(fontSize: 18, color: labelColor, fontWeight: FontWeight.bold),
                 hintText: '0.00',
-                hintStyle: const TextStyle(color: labelColor, fontSize: 18),
+                hintStyle: TextStyle(color: labelColor, fontSize: 18),
                 filled: true,
                 fillColor: inputBgColor,
                 border: OutlineInputBorder(
@@ -435,7 +437,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             // Quick Add Amounts
             Row(
               children: [
-                const Text('Quick add: ', style: TextStyle(color: labelColor, fontSize: 11)),
+                Text('Quick add: ', style: TextStyle(color: labelColor, fontSize: 11)),
                 const SizedBox(width: 4),
                 _buildQuickAddButton('+₱20', 20),
                 const SizedBox(width: 6),
@@ -445,7 +447,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                 const Spacer(),
                 GestureDetector(
                   onTap: _clearAmount,
-                  child: const Text(
+                  child: Text(
                     'Clear',
                     style: TextStyle(color: labelColor, fontSize: 11, decoration: TextDecoration.underline),
                   ),
@@ -477,7 +479,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : inputBgColor,
+                      color: isSelected ? AppColors.surface : inputBgColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected ? primaryGreen : Colors.transparent,
@@ -528,7 +530,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: isSelected ? Colors.white : inputBgColor,
+                                  color: isSelected ? AppColors.surface : inputBgColor,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: isSelected ? primaryGreen : Colors.transparent,
@@ -578,9 +580,9 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             children: [
                               Text(
                                 DateFormat('MM/dd/yyyy').format(selectedDate),
-                                style: const TextStyle(fontSize: 12, color: textColor),
+                                style: TextStyle(fontSize: 12, color: textColor),
                               ),
-                              const Icon(Icons.calendar_today_outlined, size: 14, color: labelColor),
+                              Icon(Icons.calendar_today_outlined, size: 14, color: labelColor),
                             ],
                           ),
                         ),
@@ -605,7 +607,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _fromSavings ? const Color(0xFFDCFCE7) : inputBgColor,
+                    color: _fromSavings ? AppColors.greenSoft : inputBgColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _fromSavings ? primaryGreen : Colors.transparent,
@@ -619,7 +621,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Pay from savings',
                               style: TextStyle(
                                 fontSize: 13,
@@ -629,7 +631,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                             ),
                             Text(
                               '₱${available.toStringAsFixed(2)} available • won\'t count against your budget',
-                              style: const TextStyle(fontSize: 11, color: labelColor),
+                              style: TextStyle(fontSize: 11, color: labelColor),
                             ),
                           ],
                         ),
@@ -673,7 +675,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                           ),
                           child: Text(
                             selectedTime.format(context),
-                            style: const TextStyle(fontSize: 12, color: textColor),
+                            style: TextStyle(fontSize: 12, color: textColor),
                           ),
                         ),
                       ),
@@ -690,7 +692,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                         controller: _notesController,
                         decoration: InputDecoration(
                           hintText: 'Optional note',
-                          hintStyle: const TextStyle(color: labelColor, fontSize: 12),
+                          hintStyle: TextStyle(color: labelColor, fontSize: 12),
                           filled: true,
                           fillColor: inputBgColor,
                           border: OutlineInputBorder(
@@ -742,7 +744,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           color: labelColor,
           fontSize: 10,
           fontWeight: FontWeight.bold,
@@ -763,7 +765,7 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
         ),
         child: Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             color: textColor,
             fontWeight: FontWeight.bold,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/expense_category.dart';
 import '../providers/expense_provider.dart';
+import '../themes/app_colors.dart';
 
 class ManageQuickAddModal extends StatefulWidget {
   const ManageQuickAddModal({super.key});
@@ -49,10 +50,10 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isSelected ? t.softColor : Colors.transparent,
+                color: isSelected ? t.softBg : Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: isSelected ? t.color : Colors.grey.shade300,
+                  color: isSelected ? t.color : AppColors.greyBorder,
                 ),
               ),
               child: Text(
@@ -62,7 +63,7 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? t.color : Colors.black87,
+                  color: isSelected ? t.color : AppColors.black87,
                 ),
               ),
             ),
@@ -74,6 +75,7 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     final provider = Provider.of<ExpenseProvider>(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -128,13 +130,13 @@ class _ManageQuickAddModalState extends State<ManageQuickAddModal> {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _selectedEmoji == emoji
-                        ? const Color(0xFFDCFCE7)
+                        ? AppColors.greenSoft
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: _selectedEmoji == emoji
                           ? const Color(0xFF00C853)
-                          : Colors.grey.shade300,
+                          : AppColors.greyBorder,
                     ),
                   ),
                   child: Text(emoji, style: const TextStyle(fontSize: 16)),

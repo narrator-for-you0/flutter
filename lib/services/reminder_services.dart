@@ -23,6 +23,7 @@ class ReminderService {
 
   static const int _baseId = 9100; // uses ids 9100 .. 9100 + _daysAhead - 1
   static const int _daysAhead = 7;
+  static const int _summaryId = 9200; // end-of-period summary (one at a time)
 
   Future<void> _init() async {
     if (_ready) return;
@@ -61,6 +62,33 @@ class ReminderService {
     } catch (e) {
       debugPrint('Reminder permission request failed: $e');
       return false;
+    }
+  }
+
+  /// Shows the "your period ended" summary right now. Called by
+  /// ExpenseProvider when it notices a budget period finished.
+  Future<void> showCycleSummary({required String title, required String body}) async {
+    await _init();
+    if (!_ready) return;
+    try {
+      final details = NotificationDetails(
+        android: const AndroidNotificationDetails(
+          'cycle_summary',
+          'Period summary',
+          channelDescription: 'Tells you how your allowance period went',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        windows: WindowsNotificationDetails(),
+      );
+      await _plugin.show(
+        id: _summaryId,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Could not show period summary: $e');
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
+import '../themes/app_colors.dart';
 
 class EditBudgetModal extends StatefulWidget {
   const EditBudgetModal({super.key});
@@ -31,8 +32,8 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
   late DateTime _selectedPeriodStart; // the period currently shown/edited
 
   static const primaryGreen = Color(0xFF00C853);
-  static const darkText = Color(0xFF1E293B);
-  static const labelColor = Color(0xFF64748B);
+  static Color get darkText => AppColors.text;
+  static Color get labelColor => AppColors.muted;
 
   final List<double> _suggestedBudgets = [4000, 6000, 8000];
 
@@ -177,7 +178,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? primaryGreen : const Color(0xFFF8FAFC),
+            color: isSelected ? primaryGreen : AppColors.card,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -195,6 +196,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final currentAmount = double.tryParse(_amountController.text) ?? 0;
     final autoDaily = _cycleLengthPreview > 0 ? currentAmount / _cycleLengthPreview : 0.0;
@@ -203,8 +205,8 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -220,14 +222,14 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
+                    color: AppColors.greenSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.account_balance_wallet,
                       color: primaryGreen, size: 20),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -250,7 +252,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.close, color: labelColor, size: 20),
+                  icon: Icon(Icons.close, color: labelColor, size: 20),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -258,7 +260,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             const SizedBox(height: 20),
 
             // Allowance cycle picker
-            const Text(
+            Text(
               'ALLOWANCE CYCLE',
               style: TextStyle(
                 fontSize: 11,
@@ -278,7 +280,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
 
             if (showWeekdayPicker) ...[
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'CYCLE STARTS ON',
                 style: TextStyle(
                   fontSize: 11,
@@ -300,7 +302,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: isSelected ? primaryGreen : const Color(0xFFF8FAFC),
+                          color: isSelected ? primaryGreen : AppColors.card,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -322,7 +324,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             // Amount field
             Text(
               _budgetFieldLabel,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: labelColor,
@@ -352,7 +354,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                       controller: _amountController,
                       keyboardType: TextInputType.number,
                       onChanged: (_) => setState(() {}),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: darkText,
@@ -370,7 +372,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             const SizedBox(height: 16),
 
             // Suggested budgets
-            const Text(
+            Text(
               'Suggested Student Budgets:',
               style: TextStyle(fontSize: 12, color: labelColor),
             ),
@@ -390,7 +392,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: isSelected ? primaryGreen : const Color(0xFFF8FAFC),
+                        color: isSelected ? primaryGreen : AppColors.card,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -409,7 +411,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             const SizedBox(height: 16),
 
             // Budget period (cycle-aware: a month, a week, or two weeks)
-            const Text(
+            Text(
               'BUDGET PERIOD',
               style: TextStyle(
                 fontSize: 11,
@@ -423,29 +425,29 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.chevron_left, color: labelColor),
+                    icon: Icon(Icons.chevron_left, color: labelColor),
                     onPressed: () => _changePeriod(-1),
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined,
+                      Icon(Icons.calendar_today_outlined,
                           size: 16, color: labelColor),
                       const SizedBox(width: 8),
                       Text(
                         _periodLabel,
-                        style: const TextStyle(fontSize: 14, color: darkText, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 14, color: darkText, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.chevron_right, color: labelColor),
+                    icon: Icon(Icons.chevron_right, color: labelColor),
                     onPressed: () => _changePeriod(1),
                   ),
                 ],
@@ -454,7 +456,7 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             const SizedBox(height: 16),
 
             // Daily limit (optional override)
-            const Text(
+            Text(
               'DAILY LIMIT (₱) — OPTIONAL',
               style: TextStyle(
                 fontSize: 11,
@@ -466,14 +468,14 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
             const SizedBox(height: 8),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(14),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: TextField(
                 controller: _dailyLimitController,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: darkText,
@@ -483,13 +485,13 @@ class _EditBudgetModalState extends State<EditBudgetModal> {
                   isDense: true,
                   prefixText: '₱ ',
                   hintText: 'Auto: ₱${autoDaily.toStringAsFixed(0)} per day',
-                  hintStyle: const TextStyle(fontSize: 14, color: labelColor),
+                  hintStyle: TextStyle(fontSize: 14, color: labelColor),
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               "Leave empty to use your budget ÷ days in the cycle. You'll get a warning when a day goes over.",
               style: TextStyle(fontSize: 11, color: labelColor, height: 1.3),
             ),

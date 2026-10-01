@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/expense.dart';
 import '../models/income.dart';
+import '../models/recurring_expense.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -21,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -36,10 +37,29 @@ class DatabaseHelper {
         category TEXT NOT NULL,
         date TEXT NOT NULL,
         paymentMethod TEXT NOT NULL DEFAULT 'Cash',
-        fromSavings INTEGER NOT NULL DEFAULT 0
+        fromSavings INTEGER NOT NULL DEFAULT 0,
+        recurringId INTEGER
       )
     ''');
     await _createIncomeTable(db);
+    await _createRecurringTable(db);
+  }
+
+  Future<void> _createRecurringTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE recurring_expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        paymentMethod TEXT NOT NULL DEFAULT 'Cash',
+        frequency TEXT NOT NULL,
+        startDate TEXT NOT NULL,
+        endDate TEXT,
+        lastGenerated TEXT,
+        active INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
   }
 
   Future<void> _createIncomeTable(Database db) async {
@@ -70,6 +90,11 @@ class DatabaseHelper {
       await db.execute(
         'ALTER TABLE expenses ADD COLUMN fromSavings INTEGER NOT NULL DEFAULT 0',
       );
+    }
+    // v4 -> v5: recurring expenses (+ a tag on expenses they auto-log).
+    if (oldVersion < 5) {
+      await _createRecurringTable(db);
+      await db.execute('ALTER TABLE expenses ADD COLUMN recurringId INTEGER');
     }
   }
 
@@ -131,5 +156,34 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [income.id],
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recurring expenses
+  // ---------------------------------------------------------------------------
+  Future<int> insertRecurring(RecurringExpense r) async {
+    final db = await instance.database;
+    return await db.insert('recurring_expenses', r.toMap());
+  }
+
+  Future<List<RecurringExpense>> getAllRecurring() async {
+    final db = await instance.database;
+    final result = await db.query('recurring_expenses', orderBy: 'id ASC');
+    return result.map((json) => RecurringExpense.fromMap(json)).toList();
+  }
+
+  Future<int> updateRecurring(RecurringExpense r) async {
+    final db = await instance.database;
+    return await db.update(
+      'recurring_expenses',
+      r.toMap(),
+      where: 'id = ?',
+      whereArgs: [r.id],
+    );
+  }
+
+  Future<int> deleteRecurring(int id) async {
+    final db = await instance.database;
+    return await db.delete('recurring_expenses', where: 'id = ?', whereArgs: [id]);
   }
 }

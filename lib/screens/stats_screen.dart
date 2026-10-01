@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/expense_provider.dart';
 import '../widgets/spending_calendar.dart';
+import '../themes/app_colors.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: const Key('stats_screen'));
@@ -18,8 +19,9 @@ class _StatsScreenState extends State<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.sync(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FC),
+      backgroundColor: AppColors.bgAlt,
       body: SafeArea(
         child: Consumer<ExpenseProvider>(
           builder: (context, provider, child) {
@@ -41,18 +43,18 @@ class _StatsScreenState extends State<StatsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Analytics',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                          color: AppColors.text,
                         ),
                       ),
                       if (_view == 0)
                         Text(
                           periodLabel,
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                          style: TextStyle(fontSize: 14, color: AppColors.faint),
                         ),
                     ],
                   ),
@@ -125,7 +127,7 @@ class _StatsScreenState extends State<StatsScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.transparent,
+              color: isSelected ? AppColors.surface : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               boxShadow: isSelected
                   ? [
@@ -144,7 +146,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     size: 16,
                     color: isSelected
                         ? const Color(0xFF00C853)
-                        : const Color(0xFF64748B)),
+                        : AppColors.muted),
                 const SizedBox(width: 6),
                 Text(
                   label,
@@ -152,8 +154,8 @@ class _StatsScreenState extends State<StatsScreen> {
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                     color: isSelected
-                        ? const Color(0xFF1E293B)
-                        : const Color(0xFF64748B),
+                        ? AppColors.text
+                        : AppColors.muted,
                   ),
                 ),
               ],
@@ -166,7 +168,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+        color: AppColors.track.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -188,7 +190,7 @@ class _StatsScreenState extends State<StatsScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+            color: isSelected ? AppColors.greenSoft : AppColors.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected ? const Color(0xFF00C853) : Colors.transparent,
@@ -200,8 +202,8 @@ class _StatsScreenState extends State<StatsScreen> {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: isSelected
-                  ? const Color(0xFF15803D)
-                  : const Color(0xFF94A3B8),
+                  ? AppColors.greenDark
+                  : AppColors.faint,
             ),
           ),
         ),
@@ -221,7 +223,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+        color: AppColors.track.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(25),
       ),
       child: Row(
@@ -251,7 +253,7 @@ class _StatsScreenState extends State<StatsScreen> {
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              color: isSelected ? Colors.white : AppColors.muted,
             ),
           ),
         ),
@@ -279,7 +281,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     sections: breakdown.isEmpty
                         ? [
                             PieChartSectionData(
-                              color: const Color(0xFFE2E8F0),
+                              color: AppColors.track,
                               value: 100,
                               title: '',
                               radius: 18,
@@ -298,17 +300,17 @@ class _StatsScreenState extends State<StatsScreen> {
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('TOTAL',
+                    Text('TOTAL',
                         style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF94A3B8),
+                            color: AppColors.faint,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 2),
                     Text('₱${total.toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B))),
+                            color: AppColors.text)),
                   ],
                 ),
               ],
@@ -330,19 +332,19 @@ class _StatsScreenState extends State<StatsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF94A3B8))),
+                  color: AppColors.faint)),
           const SizedBox(height: 6),
           Text(value,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B))),
+                  color: AppColors.text)),
           const SizedBox(height: 2),
           Text(subtitle,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+              style: TextStyle(fontSize: 11, color: AppColors.faint)),
         ],
       ),
     );
@@ -370,7 +372,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFFFF8E1),
+                        color: AppColors.amberSoft,
                         borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.bar_chart,
                         color: Color(0xFFFFA000), size: 18),
@@ -379,17 +381,17 @@ class _StatsScreenState extends State<StatsScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('TREND',
+                      Text('TREND',
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B))),
+                              color: AppColors.text)),
                       Text(
                         filterIndex == 0
                             ? 'Past 7 days spending'
                             : 'Weekly breakdown',
-                        style: const TextStyle(
-                            fontSize: 11, color: Color(0xFF94A3B8)),
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.faint),
                       ),
                     ],
                   ),
@@ -427,7 +429,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                   isLast ? FontWeight.bold : FontWeight.normal,
                               color: isLast
                                   ? const Color(0xFF00C853)
-                                  : const Color(0xFF94A3B8),
+                                  : AppColors.faint,
                             ),
                           ),
                         );
@@ -455,7 +457,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: maxVal == 0 ? 100 : maxVal,
-                          color: const Color(0xFFF1F5F9),
+                          color: AppColors.fill,
                         ),
                       ),
                     ],
@@ -477,23 +479,23 @@ class _StatsScreenState extends State<StatsScreen> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
+            children: [
               Text('BREAKDOWN',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B))),
+                      color: AppColors.text)),
               Text('Ranked by spending',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                  style: TextStyle(fontSize: 11, color: AppColors.faint)),
             ],
           ),
           const SizedBox(height: 12),
           if (breakdown.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Text(
                 'No expenses recorded for this period',
-                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                style: TextStyle(fontSize: 12, color: AppColors.faint),
               ),
             )
           else
@@ -502,7 +504,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: AppColors.card,
                       borderRadius: BorderRadius.circular(20)),
                   child: Row(
                     children: [
@@ -510,20 +512,20 @@ class _StatsScreenState extends State<StatsScreen> {
                           radius: 5, backgroundColor: c['color'] as Color),
                       const SizedBox(width: 10),
                       Text(c['name'] as String,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B))),
+                              color: AppColors.text)),
                       const Spacer(),
                       Text('(${c['pct']})',
-                          style: const TextStyle(
-                              fontSize: 11, color: Color(0xFF94A3B8))),
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.faint)),
                       const SizedBox(width: 8),
                       Text('₱${(c['amt'] as double).toStringAsFixed(2)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B))),
+                              color: AppColors.text)),
                     ],
                   ),
                 )),
@@ -536,7 +538,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5E9),
+        color: AppColors.greenSoftAlt,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFA5D6A7).withValues(alpha: 0.5)),
       ),
@@ -547,15 +549,15 @@ class _StatsScreenState extends State<StatsScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text('You\'re doing great!',
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E7D32))),
+                        color: AppColors.greenDark)),
                 SizedBox(height: 2),
                 Text('Keep track of your meals and drinks to stay on budget!',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF388E3C))),
+                    style: TextStyle(fontSize: 11, color: AppColors.greenDark)),
               ],
             ),
           ),
@@ -566,7 +568,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(
