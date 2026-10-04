@@ -96,6 +96,13 @@ class UserProfileProvider with ChangeNotifier {
     }
   }
 
+  /// Resets onboarding state so the app starts from Get Started again.
+  Future<void> resetOnboarding() async {
+    _hasOnboarded = false;
+    await _save();
+    notifyListeners();
+  }
+
   Future<void> _save() async {
     try {
       final prefs = await SharedPreferences.getInstance();

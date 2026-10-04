@@ -5,9 +5,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
-        android:label="flutter_app_project"
+        android:label="GastoGo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -16,11 +17,8 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
-               <activity
-       android:name="com.yalantis.ucrop.UCropActivity"
-       android:screenOrientation="portrait"
-       android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+            android:windowSoftInputMode="adjustResize"> <!-- Fixed: Added closing bracket here -->
+            
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
@@ -30,6 +28,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Moved: UCropActivity is now placed correctly outside MainActivity -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
 
         <!-- ADDED: lets scheduled notifications fire, and re-schedules them after a reboot -->
         <receiver
@@ -58,3 +62,4 @@
         </intent>
     </queries>
 </manifest>
+    

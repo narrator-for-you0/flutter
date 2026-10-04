@@ -262,12 +262,17 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _card({required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
+    // A Material rather than a decorated Container: these cards hold ListTiles,
+    // and a ListTile paints its background and ink splashes on the nearest
+    // Material ancestor. With a BoxDecoration in between, that ancestor is the
+    // Scaffold and the card's own background hides every splash and ripple.
+    return Material(
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
+      clipBehavior: Clip.antiAlias,
       child: child,
     );
   }

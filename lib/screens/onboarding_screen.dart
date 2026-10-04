@@ -243,38 +243,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Transform.scale(scale: scale, child: child),
             ),
             child: Container(
-              width: 96,
-              height: 96,
-              alignment: Alignment.center,
+              width: double.infinity,
+              height: 150,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: _green,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: _green.withValues(alpha: 0.3),
+                    color: _green.withValues(alpha: 0.25),
                     blurRadius: 24,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
-              child: const Text('🍽️', style: TextStyle(fontSize: 46)),
+              child: Image.asset(
+                'assets/images/gastogo_logo.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           const SizedBox(height: 28),
           Text(
-            'Food Allowance Tracker',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: _dark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
             'Make your allowance last until the next one.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: _muted, height: 1.4),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _dark,
+              height: 1.3,
+            ),
           ),
           const SizedBox(height: 32),
           _feature(

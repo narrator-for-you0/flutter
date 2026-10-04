@@ -34,7 +34,7 @@ class ReminderService {
         '@mipmap/ic_launcher',
       );
       final windowsSettings = WindowsInitializationSettings(
-        appName: 'Food Allowance Tracker',
+        appName: 'GastoGo',
         appUserModelId: 'com.foodallowance.tracker',
         guid: 'b7e3c2a4-5d1f-4c8e-9a36-2f0d8e6b1c47',
       );
